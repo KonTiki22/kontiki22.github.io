@@ -312,9 +312,9 @@
         <a-entity light="type: hemisphere; intensity: 0.5; color: #ffffff; groundColor: #443322;"></a-entity>
 
         <!-- Центральная ось для вращения модели в обычном режиме -->
-        <a-entity id="model-wrapper" position="0 0 0">
+        <a-entity id="model-wrapper" position="0 0 0" hide-on-enter-ar>
             <a-entity id="main-model"
-                      gltf-model="models/Figure_1.glb" 
+                      gltf-model="models/Figure_1.glb"
                       shadow="cast: true; receive: true">
             </a-entity>
         </a-entity>
@@ -430,17 +430,14 @@
                     }
                 });
 
-                // Обработчики касаний
+                // Обработчики касаний (вешаем на window, так как canvas может не существовать)
                 this.onPointerDown = this.onPointerDown.bind(this);
                 this.onPointerUp = this.onPointerUp.bind(this);
                 this.onPointerMove = this.onPointerMove.bind(this);
-                
-                const canvas = document.querySelector('canvas');
-                if (canvas) {
-                    canvas.addEventListener('touchstart', this.onPointerDown, { passive: false });
-                    canvas.addEventListener('touchend', this.onPointerUp);
-                    canvas.addEventListener('touchmove', this.onPointerMove, { passive: false });
-                }
+
+                window.addEventListener('touchstart', this.onPointerDown, { passive: false });
+                window.addEventListener('touchend', this.onPointerUp);
+                window.addEventListener('touchmove', this.onPointerMove, { passive: false });
             },
 
             onPointerDown: function (evt) {
@@ -614,6 +611,7 @@
                 this.camera.setAttribute('position', `0 0 ${this.zoom}`);
             },
             onPointerDown: function (evt) {
+                if (document.body.classList.contains('ar-mode')) return;
                 if (evt.target.closest && (evt.target.closest('#prev-btn') || evt.target.closest('#next-btn') || evt.target.closest('#ar-mode-btn'))) return;
                 this.isDragging = true;
                 if (evt.touches && evt.touches.length === 2) {
@@ -630,6 +628,7 @@
             },
             onPointerUp: function () { this.isDragging = false; },
             onPointerMove: function (evt) {
+                if (document.body.classList.contains('ar-mode')) return;
                 if (!this.isDragging) return;
                 if (evt.touches && evt.touches.length === 2) {
                     evt.preventDefault();
@@ -661,6 +660,7 @@
                 this.previousPos = { x: clientX, y: clientY };
             },
             onWheel: function (evt) {
+                if (document.body.classList.contains('ar-mode')) return;
                 evt.preventDefault();
                 this.zoom += evt.deltaY * 0.005;
                 this.zoom = Math.max(this.minZoom, Math.min(this.zoom, this.maxZoom));
