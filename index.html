@@ -395,7 +395,9 @@
         AFRAME.registerComponent('ar-placement', {
             init: function () {
                 this.arModelParent = document.getElementById('ar-model');
+                this.reticle = null;
                 this.arMode = false;
+                this.placed = false;
                 const sceneEl = this.el;
 
                 // Флаги и переменные для жестов
@@ -406,31 +408,41 @@
                 this.initialAngle = 0;
                 this.initialRotationY = 0;
 
-                sceneEl.addEventListener('enter-vr', (evt) => {
-                    if (evt.detail && evt.detail.session && evt.detail.session.mode === 'immersive-ar') {
+                sceneEl.addEventListener('enter-vr', () => {
+                    if (sceneEl.is('ar-mode')) {
                         this.arMode = true;
+                        this.placed = false;
                         document.body.classList.add('ar-mode');
                         console.log('AR режим активирован');
-                        
+
                         if (this.arModelParent) {
                             this.arModelParent.setAttribute('visible', 'true');
-                            // Начальная позиция перед камерой
-                            this.arModelParent.setAttribute('position', '0 -0.3 -1.0');
-                            this.arModelParent.setAttribute('rotation', '0 0 0');
-                            // Масштаб будет установлен после загрузки модели через ar-model-sync
+                        }
+
+                        // Запрашиваем hit-test источник
+                        const session = sceneEl.renderer.xr.getSession();
+                        if (session) {
+                            session.requestReferenceSpace('viewer').then((refSpace) => {
+                                session.requestHitTestSource({ space: refSpace }).then((source) => {
+                                    this.hitTestSource = source;
+                                    console.log('Hit test source получен');
+                                });
+                            });
                         }
                     }
                 });
 
                 sceneEl.addEventListener('exit-vr', () => {
                     this.arMode = false;
+                    this.hitTestSource = null;
+                    this.placed = false;
                     document.body.classList.remove('ar-mode');
                     if (this.arModelParent) {
                         this.arModelParent.setAttribute('visible', 'false');
                     }
                 });
 
-                // Обработчики касаний (вешаем на window, так как canvas может не существовать)
+                // Обработчики касаний
                 this.onPointerDown = this.onPointerDown.bind(this);
                 this.onPointerUp = this.onPointerUp.bind(this);
                 this.onPointerMove = this.onPointerMove.bind(this);
@@ -440,9 +452,36 @@
                 window.addEventListener('touchmove', this.onPointerMove, { passive: false });
             },
 
+            tick: function (t, dt) {
+                if (!this.arMode || !this.hitTestSource || this.placed) return;
+
+                const frame = this.el.sceneEl.frame;
+                const session = this.el.sceneEl.renderer.xr.getSession();
+                if (!frame || !session) return;
+
+                const refSpace = this.el.sceneEl.renderer.xr.getReferenceSpace();
+                const hitTestResults = frame.getHitTestResults(this.hitTestSource);
+
+                if (hitTestResults.length > 0) {
+                    const hit = hitTestResults[0];
+                    const pose = hit.getPose(refSpace);
+
+                    // Плавно перемещаем модель по поверхности пола/стола
+                    this.arModelParent.object3D.position.copy(pose.transform.position);
+                    this.arModelParent.object3D.quaternion.copy(pose.transform.orientation);
+                }
+            },
+
             onPointerDown: function (evt) {
                 if (!this.arMode) return;
-                
+
+                // Первый тап в AR фиксирует модель на поверхности
+                if (!this.placed && evt.touches.length === 1) {
+                    this.placed = true;
+                    console.log("Модель зафиксирована на поверхности");
+                    return;
+                }
+
                 if (evt.touches.length === 2) {
                     const dx = evt.touches[0].clientX - evt.touches[1].clientX;
                     const dy = evt.touches[0].clientY - evt.touches[1].clientY;
@@ -451,8 +490,7 @@
                     this.initialAngle = Math.atan2(dy, dx);
                     const rot = this.arModelParent.getAttribute('rotation');
                     this.initialRotationY = rot.y;
-                } 
-                else if (evt.touches.length === 1) {
+                } else if (evt.touches.length === 1) {
                     this.isDragging = true;
                     this.previousPos = {
                         x: evt.touches[0].clientX,
@@ -466,7 +504,7 @@
             },
 
             onPointerMove: function (evt) {
-                if (!this.arMode) return;
+                if (!this.arMode || !this.placed) return;
 
                 if (evt.touches.length === 2) {
                     evt.preventDefault();
@@ -474,30 +512,26 @@
                     const dy = evt.touches[0].clientY - evt.touches[1].clientY;
                     const currentDistance = Math.hypot(dx, dy);
                     const currentAngle = Math.atan2(dy, dx);
-                    
-                    // Масштабирование
+
+                    // Масштабирование (относительно начального)
                     let scale = this.initialScale * (currentDistance / this.initialDistance);
                     scale = Math.max(0.1, Math.min(5.0, scale));
                     this.arModelParent.object3D.scale.set(scale, scale, scale);
-                    
-                    // Вращение вокруг вертикальной оси
+
                     let deltaAngle = currentAngle - this.initialAngle;
-                    let newRotY = this.initialRotationY + deltaAngle * (180 / Math.PI);
-                    this.arModelParent.setAttribute('rotation', { x: 0, y: newRotY, z: 0 });
-                } 
+                    this.arModelParent.setAttribute('rotation', { x: 0, y: this.initialRotationY + deltaAngle * (180 / Math.PI), z: 0 });
+                }
                 else if (this.isDragging && evt.touches.length === 1) {
                     evt.preventDefault();
                     const clientX = evt.touches[0].clientX;
                     const clientY = evt.touches[0].clientY;
                     const deltaX = clientX - this.previousPos.x;
                     const deltaY = clientY - this.previousPos.y;
-                    
-                    const speed = 0.008;
+
+                    // Перемещение по плоскости пола
                     let pos = this.arModelParent.getAttribute('position');
-                    pos.x -= deltaX * speed;
-                    pos.z += deltaY * speed;
-                    pos.x = Math.max(-2.5, Math.min(2.5, pos.x));
-                    pos.z = Math.max(-3.0, Math.min(1.0, pos.z));
+                    pos.x += deltaX * 0.002;
+                    pos.z += deltaY * 0.002;
                     this.arModelParent.setAttribute('position', pos);
                     this.previousPos = { x: clientX, y: clientY };
                 }
@@ -542,43 +576,44 @@
                 }, 30);
             },
             scaleArModelToFit: function () {
-                // Получаем меш внутренней модели и вычисляем её размеры
-                const mesh = this.arModelInner.getObject3D('mesh');
-                if (!mesh) {
-                    setTimeout(() => this.scaleArModelToFit(), 50);
+                const object = this.arModelInner.object3D;
+
+                // Ждем, пока модель действительно загрузится в сцену
+                if (!object || object.children.length === 0) {
+                    setTimeout(() => this.scaleArModelToFit(), 100);
                     return;
                 }
-                
-                // Сбрасываем масштаб внутренней модели (она будет масштабироваться один раз, а пользовательский масштаб будет на родителе)
-                this.arModelInner.object3D.scale.set(1, 1, 1);
-                this.arModelInner.object3D.position.set(0, 0, 0);
-                this.arModelInner.object3D.updateMatrixWorld(true);
-                
-                const box = new THREE.Box3().setFromObject(mesh);
+
+                object.scale.set(1, 1, 1);
+                object.updateMatrixWorld(true);
+
+                // Вычисляем размер по всему дереву объектов модели
+                const box = new THREE.Box3().setFromObject(object);
                 const size = new THREE.Vector3();
                 box.getSize(size);
+
                 const maxDim = Math.max(size.x, size.y, size.z);
-                if (maxDim === 0) return;
-                
-                // Желаемый размер модели в AR: около 0.15 метра по наибольшей оси (удобно для размещения на столе)
+                if (maxDim === 0 || isNaN(maxDim)) return;
+
+                // Принудительно делаем её 15 сантиметров
                 const TARGET_AR_SIZE = 0.15;
                 const scaleFactor = TARGET_AR_SIZE / maxDim;
-                this.arModelInner.object3D.scale.set(scaleFactor, scaleFactor, scaleFactor);
-                this.arModelInner.object3D.updateMatrixWorld(true);
-                
-                // Центрирование модели
-                const scaledBox = new THREE.Box3().setFromObject(mesh);
+
+                object.scale.set(scaleFactor, scaleFactor, scaleFactor);
+                object.updateMatrixWorld(true);
+
+                // Центрируем, чтобы она стояла основанием на точке Hit-test
+                const centeredBox = new THREE.Box3().setFromObject(object);
                 const center = new THREE.Vector3();
-                scaledBox.getCenter(center);
-                this.arModelInner.object3D.position.set(-center.x, -center.y, -center.z);
-                this.arModelInner.object3D.updateMatrixWorld(true);
-                
+                centeredBox.getCenter(center);
+                // Смещаем так, чтобы низ модели (min.y) был в нуле
+                object.position.set(-center.x, -centeredBox.min.y, -center.z);
+                object.updateMatrixWorld(true);
+
                 // Сбрасываем масштаб родителя, чтобы не было двойного масштабирования
-                if (this.arModelParent) {
-                    this.arModelParent.object3D.scale.set(1, 1, 1);
-                }
-                
-                console.log('AR модель отмасштабирована, размер ~', TARGET_AR_SIZE);
+                if (this.arModelParent) this.arModelParent.object3D.scale.set(1, 1, 1);
+
+                console.log('Размер модели нормализован:', TARGET_AR_SIZE, 'м');
             }
         });
 
