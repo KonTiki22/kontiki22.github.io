@@ -23,7 +23,6 @@
         </div>
         <div id="description"></div>
 
-        <!-- Кастомная кнопка AR -->
         <button id="ar-mode-btn" class="custom-ar-button" style="display: none;">AR</button>
         <div id="ar-unsupported-msg" class="ar-unsupported-msg">
             ⚠️ Ваше устройство не поддерживает WebXR AR. Доступен только 3D просмотр.
@@ -33,59 +32,45 @@
     <a-scene
         renderer="colorManagement: true; antialias: true; physicallyCorrectLights: true; logarithmicDepthBuffer: true;"
         shadow="type: pcfsoft"
-        webxr="requiredFeatures: hit-test; optionalFeatures: dom-overlay; overlayElement: #overlay; referenceSpaceType: local;"
-        ar-hit-test="targetEl: #reticle; enabled: false;"
+        webxr="requiredFeatures: hit-test; optionalFeatures: dom-overlay; overlayElement: #overlay;"
+        
+        <!-- ВЕРНОЕ ИСПОЛЬЗОВАНИЕ ИЗ ДОКУМЕНТАЦИИ A-FRAME 1.7.0 -->
+        ar-hit-test="target: #ar-model;" 
+        
         ar-placement
         log-webxr
         ar-model-sync
         gallery-controls>
 
+        <!-- Небо и Освещение -->
         <a-sky material="shader: background-gradient; colorTop: #1e2a3a; colorBottom: #0a0a0a;" geometry="primitive: sphere; radius: 500; thetaLength: 64; phiLength: 64;" hide-on-enter-ar></a-sky>
 
-        <!-- Освещение -->
         <a-entity light="type: ambient; intensity: 0.9;"></a-entity>
         <a-entity id="main-light"
                   position="3 5 4"
                   light="type: directional; intensity: 1.6; castShadow: true; shadowBias: -0.0005; shadowMapHeight: 2048; shadowMapWidth: 2048; shadowCameraLeft: -4; shadowCameraRight: 4; shadowCameraTop: 4; shadowCameraBottom: -4;">
         </a-entity>
-
         <a-entity light="type: hemisphere; intensity: 0.5; color: #ffffff; groundColor: #443322;"></a-entity>
 
-        <!-- Центральная ось для вращения модели в обычном режиме -->
+        <!-- Обычный режим (3D) -->
         <a-entity id="model-wrapper" position="0 0 0" hide-on-enter-ar>
-            <a-entity id="main-model"
-                      gltf-model="models/Figure_1.glb"
-                      shadow="cast: true; receive: true">
-            </a-entity>
+            <a-entity id="main-model" gltf-model="models/Figure_1.glb" shadow="cast: true; receive: true"></a-entity>
         </a-entity>
         
-        <!-- Пол для тени -->
         <a-plane rotation="-90 0 0" position="0 0 0" width="20" height="20" color="#111" opacity="0.3" shadow="receive: true" hide-on-enter-ar></a-plane>
 
-        <!-- Ретикуль (прицел) — виден только в AR, пока модель не поставлена -->
-        <a-entity id="reticle" visible="false">
-            <a-ring rotation="-90 0 0" radius-inner="0.04" radius-outer="0.05" color="#4CC3D9"></a-ring>
-        </a-entity>
-
-        <!-- AR модель: родительский объект для управления положением/поворотом/масштабом -->
+        <!-- AR модель: Изначально скрыта. ar-hit-test сам сделает её видимой при тапе -->
         <a-entity id="ar-model" visible="false">
-            <!-- Внутренняя модель, которую будем центрировать и масштабировать один раз для нужного размера -->
-            <a-entity id="ar-model-inner"
-                      gltf-model="models/Figure_1.glb"
-                      shadow="cast: true; receive: true">
-            </a-entity>
+            <a-entity id="ar-model-inner" gltf-model="models/Figure_1.glb" shadow="cast: true; receive: true"></a-entity>
         </a-entity>
 
-        <!-- Статичная камера для обычного режима -->
-        <a-entity id="main-camera" camera
-                  look-controls="enabled: false"
-                  wasd-controls="enabled: false"
-                  position="0 0 0.25">
-        </a-entity>
+        <!-- Камера -->
+        <a-entity id="main-camera" camera look-controls="enabled: false" wasd-controls="enabled: false" position="0 0 0.25"></a-entity>
 
     </a-scene>
 
     <script>
+        // --- 1. Проверка поддержки AR ---
         const arButton = document.getElementById('ar-mode-btn');
         const unsupportedMsg = document.getElementById('ar-unsupported-msg');
         let isArSupportedFlag = false;
@@ -109,7 +94,7 @@
         }
         checkARSupport();
 
-        async function enterAR() {
+        arButton.addEventListener('click', async () => {
             const sceneEl = document.querySelector('a-scene');
             if (!sceneEl || !isArSupportedFlag) {
                 alert('Ваше устройство не поддерживает WebXR AR');
@@ -119,46 +104,25 @@
                 await sceneEl.enterVR({ mode: 'immersive-ar' });
             } catch (err) {
                 console.error(err);
-                alert('Не удалось запустить AR');
             }
-        }
-        arButton.addEventListener('click', enterAR);
+        });
         
-        // Компонент AR-управления: перемещение (1 палец), масштаб и вращение (2 пальца)
+        // --- 2. Логика размещения в AR ---
         AFRAME.registerComponent('ar-placement', {
             init: function () {
-                const sceneEl = this.el.sceneEl;
-                const reticle = document.getElementById('reticle');
+                const sceneEl = this.el;
                 const arModel = document.getElementById('ar-model');
-
+                
                 this.placed = false;
                 this.arMode = false;
 
-                this.isDragging = false;
-                this.previousPos = { x: 0, y: 0 };
-                this.initialDistance = 0;
-                this.initialScale = 1;
-                this.initialAngle = 0;
-                this.initialRotationY = 0;
-
-                this.onPointerDown = this.onPointerDown.bind(this);
-                this.onPointerUp = this.onPointerUp.bind(this);
-                this.onPointerMove = this.onPointerMove.bind(this);
-
-                sceneEl.addEventListener('ar-hit-test-select', (evt) => {
-                    if (this.placed || !this.arMode) return;
-                    const hitPose = evt.detail.position;
-                    const hitRotation = evt.detail.orientation;
-                    if (arModel) {
-                        arModel.setAttribute('position', hitPose);
-                        arModel.object3D.quaternion.copy(hitRotation);
-                        arModel.setAttribute('visible', 'true');
-                        this.placed = true;
-                        sceneEl.setAttribute('ar-hit-test', 'enabled', false);
-                        reticle.setAttribute('visible', false);
-                        console.log("Фигурка установлена!");
-                        if (window.navigator.vibrate) window.navigator.vibrate(50);
-                    }
+                // A-Frame 1.7.0 сам поставит модель при тапе и вызовет это событие.
+                // Нам остается только отключить прицел, чтобы модель не прыгала при следующих тапах.
+                sceneEl.addEventListener('ar-hit-test-select', () => {
+                    this.placed = true;
+                    sceneEl.setAttribute('ar-hit-test', 'enabled', false);
+                    if (window.navigator.vibrate) window.navigator.vibrate(50);
+                    console.log("Фигурка установлена встроенным компонентом A-Frame!");
                 });
 
                 sceneEl.addEventListener('enter-vr', () => {
@@ -178,6 +142,10 @@
                     sceneEl.setAttribute('ar-hit-test', 'enabled', false);
                 });
 
+                // Обработчики жестов (оставляем для вращения/зума уже ПОСЛЕ размещения)
+                this.onPointerDown = this.onPointerDown.bind(this);
+                this.onPointerUp = this.onPointerUp.bind(this);
+                this.onPointerMove = this.onPointerMove.bind(this);
                 window.addEventListener('touchstart', this.onPointerDown, { passive: false });
                 window.addEventListener('touchend', this.onPointerUp);
                 window.addEventListener('touchmove', this.onPointerMove, { passive: false });
@@ -185,9 +153,7 @@
 
             onPointerDown: function (evt) {
                 if (!this.arMode || !this.placed) return;
-
                 const arModel = document.getElementById('ar-model');
-
                 if (evt.touches.length === 2) {
                     const dx = evt.touches[0].clientX - evt.touches[1].clientX;
                     const dy = evt.touches[0].clientY - evt.touches[1].clientY;
@@ -198,20 +164,12 @@
                     this.initialRotationY = rot.y;
                 } else if (evt.touches.length === 1) {
                     this.isDragging = true;
-                    this.previousPos = {
-                        x: evt.touches[0].clientX,
-                        y: evt.touches[0].clientY
-                    };
+                    this.previousPos = { x: evt.touches[0].clientX, y: evt.touches[0].clientY };
                 }
             },
-
-            onPointerUp: function () {
-                this.isDragging = false;
-            },
-
+            onPointerUp: function () { this.isDragging = false; },
             onPointerMove: function (evt) {
                 if (!this.arMode || !this.placed) return;
-
                 const arModel = document.getElementById('ar-model');
 
                 if (evt.touches.length === 2) {
@@ -244,15 +202,11 @@
             }
         });
 
+        // --- 3. Подготовка и синхронизация моделей ---
         AFRAME.registerComponent('log-webxr', {
             init: function () {
-                const sceneEl = this.el;
-                sceneEl.addEventListener('enter-vr', (evt) => {
-                    console.log('Режим:', evt.detail.session.mode);
-                });
-                sceneEl.addEventListener('exit-vr', () => {
-                    console.log('Выход из VR/AR');
-                });
+                this.el.addEventListener('enter-vr', (evt) => console.log('Режим:', evt.detail.session.mode));
+                this.el.addEventListener('exit-vr', () => console.log('Выход из VR/AR'));
             }
         });
 
@@ -261,8 +215,7 @@
                 this.arModelInner = document.getElementById('ar-model-inner');
                 this.arModelParent = document.getElementById('ar-model');
                 this.currentFigure = 1;
-                const sceneEl = this.el;
-                sceneEl.addEventListener('figure-changed', (evt) => {
+                this.el.addEventListener('figure-changed', (evt) => {
                     this.currentFigure = evt.detail.figure;
                     this.updateModel();
                 });
@@ -273,9 +226,7 @@
                 this.arModelInner.removeAttribute('gltf-model');
                 setTimeout(() => {
                     this.arModelInner.setAttribute('gltf-model', `models/Figure_${this.currentFigure}.glb`);
-                    this.arModelInner.addEventListener('model-loaded', () => {
-                        this.scaleArModelToFit();
-                    }, { once: true });
+                    this.arModelInner.addEventListener('model-loaded', () => this.scaleArModelToFit(), { once: true });
                 }, 30);
             },
             scaleArModelToFit: function () {
@@ -290,22 +241,25 @@
                 const size = new THREE.Vector3();
                 box.getSize(size);
                 const maxDim = Math.max(size.x, size.y, size.z);
-                if (maxDim === 0 || isNaN(maxDim)) return;
-                const TARGET_AR_SIZE = 0.15;
+                if (maxDim === 0) return;
+                
+                const TARGET_AR_SIZE = 0.20; // 20 сантиметров в AR
                 const scaleFactor = TARGET_AR_SIZE / maxDim;
                 object.scale.set(scaleFactor, scaleFactor, scaleFactor);
                 object.updateMatrixWorld(true);
+                
                 const centeredBox = new THREE.Box3().setFromObject(object);
                 const center = new THREE.Vector3();
                 centeredBox.getCenter(center);
                 object.position.set(-center.x, -centeredBox.min.y, -center.z);
                 object.updateMatrixWorld(true);
+                
                 if (this.arModelParent) this.arModelParent.object3D.scale.set(1, 1, 1);
-                console.log('Размер модели нормализован:', TARGET_AR_SIZE, 'м');
             }
         });
 
         AFRAME.registerComponent('gallery-controls', {
+            // Оставляем как было - управление в 3D режиме
             init: function () {
                 this.wrapper = document.getElementById('model-wrapper');
                 this.camera = document.getElementById('main-camera');
@@ -329,7 +283,6 @@
                 document.addEventListener('touchend', this.onPointerUp);
                 document.addEventListener('touchmove', this.onPointerMove, { passive: false });
                 document.addEventListener('wheel', this.onWheel, { passive: false });
-
                 this.camera.setAttribute('position', `0 0 ${this.zoom}`);
             },
             onPointerDown: function (evt) {
@@ -353,10 +306,7 @@
                 if (document.body.classList.contains('ar-mode') || !this.isDragging) return;
                 if (evt.touches && evt.touches.length === 2) {
                     evt.preventDefault();
-                    let currentDistance = Math.hypot(
-                        evt.touches[0].clientX - evt.touches[1].clientX,
-                        evt.touches[0].clientY - evt.touches[1].clientY
-                    );
+                    let currentDistance = Math.hypot(evt.touches[0].clientX - evt.touches[1].clientX, evt.touches[0].clientY - evt.touches[1].clientY);
                     let zoomFactor = this.initialDistance / currentDistance;
                     this.zoom = this.initialZoom * zoomFactor;
                     this.zoom = Math.max(this.minZoom, Math.min(this.zoom, this.maxZoom));
@@ -371,13 +321,8 @@
                 let rot = this.wrapper.getAttribute('rotation');
                 let rotYRad = rot.y * Math.PI / 180;
                 let adjustedDeltaY = deltaY * Math.cos(rotYRad);
-                let newRotX = rot.x + adjustedDeltaY * 0.22;
-                newRotX = Math.max(-70, Math.min(70, newRotX));
-                this.wrapper.setAttribute('rotation', {
-                    x: newRotX,
-                    y: rot.y + deltaX * 0.22,
-                    z: rot.z
-                });
+                let newRotX = Math.max(-70, Math.min(70, rot.x + adjustedDeltaY * 0.22));
+                this.wrapper.setAttribute('rotation', { x: newRotX, y: rot.y + deltaX * 0.22, z: rot.z });
                 this.previousPos = { x: clientX, y: clientY };
             },
             onWheel: function (evt) {
@@ -388,6 +333,8 @@
                 this.camera.setAttribute('position', `0 0 ${this.zoom}`);
             }
         });
+
+        // --- 4. Управление интерфейсом ---
         const modelEntity = document.getElementById('main-model');
         const wrapperEntity = document.getElementById('model-wrapper');
         const loadingEl = document.getElementById('loading');
@@ -428,11 +375,9 @@
             modelEntity.object3D.position.set(-center.x, -center.y, -center.z);
             modelEntity.object3D.updateMatrixWorld(true);
             const finalBox = new THREE.Box3().setFromObject(mesh);
-            const floorY = finalBox.min.y;
             const planeEl = document.querySelector('a-plane');
-            if (planeEl) {
-                planeEl.setAttribute('position', `0 ${floorY - 0.05} 0`);
-            }
+            if (planeEl) planeEl.setAttribute('position', `0 ${finalBox.min.y - 0.05} 0`);
+            
             mesh.traverse(node => {
                 if (node.isMesh) {
                     node.castShadow = true;
@@ -453,9 +398,7 @@
         function loadFigure(num) {
             loadingEl.style.display = 'flex';
             descriptionEl.textContent = descriptions[num] || `Экспонат №${num}`;
-            if (wrapperEntity) {
-                wrapperEntity.setAttribute('rotation', '0 0 0');
-            }
+            if (wrapperEntity) wrapperEntity.setAttribute('rotation', '0 0 0');
             modelEntity.object3D.scale.set(1, 1, 1);
             modelEntity.object3D.position.set(0, 0, 0);
             modelEntity.removeAttribute('gltf-model');
@@ -465,20 +408,15 @@
             }, 20);
         }
 
-        document.getElementById('prev-btn').onclick = () => {
-            currentFigure = currentFigure > 1 ? currentFigure - 1 : totalFigures;
-            loadFigure(currentFigure);
-        };
-
-        document.getElementById('next-btn').onclick = () => {
-            currentFigure = currentFigure < totalFigures ? currentFigure + 1 : 1;
-            loadFigure(currentFigure);
-        };
-
+        document.getElementById('prev-btn').onclick = () => { currentFigure = currentFigure > 1 ? currentFigure - 1 : totalFigures; loadFigure(currentFigure); };
+        document.getElementById('next-btn').onclick = () => { currentFigure = currentFigure < totalFigures ? currentFigure + 1 : 1; loadFigure(currentFigure); };
+        
         loadFigure(currentFigure);
 
         document.body.addEventListener('contextmenu', (e) => e.preventDefault());
 
+        // --- ВАЖНЕЙШИЙ ФИКС ДЛЯ ДОСТУПА ТАПА В AR ---
+        // Разрешаем WebXR реагировать на тапы, блокируем только если тапнули по кнопке интерфейса
         const overlay = document.getElementById('overlay');
         if (overlay) {
             overlay.addEventListener('beforexrselect', (e) => {
