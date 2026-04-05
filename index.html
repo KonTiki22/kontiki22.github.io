@@ -34,7 +34,7 @@
         renderer="colorManagement: true; antialias: true; physicallyCorrectLights: true; logarithmicDepthBuffer: true;"
         shadow="type: pcfsoft"
         webxr="requiredFeatures: hit-test; optionalFeatures: dom-overlay; overlayElement: #overlay; referenceSpaceType: local;"
-        ar-hit-test="targetEl: #reticle"
+        ar-hit-test="targetEl: #reticle; enabled: false;"
         ar-placement
         log-webxr
         ar-model-sync
@@ -64,7 +64,7 @@
 
         <!-- Ретикуль (прицел) — виден только в AR, пока модель не поставлена -->
         <a-entity id="reticle" visible="false">
-            <a-ring rotation="-90 0 0" radius-inner="0.02" radius-outer="0.03" color="#4CC3D9"></a-ring>
+            <a-ring rotation="-90 0 0" radius-inner="0.04" radius-outer="0.05" color="#4CC3D9"></a-ring>
         </a-entity>
 
         <!-- AR модель: родительский объект для управления положением/поворотом/масштабом -->
@@ -130,6 +130,7 @@
                 const sceneEl = this.el.sceneEl;
                 const reticle = document.getElementById('reticle');
                 const arModel = document.getElementById('ar-model');
+
                 this.placed = false;
                 this.arMode = false;
 
@@ -145,17 +146,17 @@
                 this.onPointerMove = this.onPointerMove.bind(this);
 
                 sceneEl.addEventListener('ar-hit-test-select', (evt) => {
-                    if (this.placed) return;
+                    if (this.placed || !this.arMode) return;
                     const hitPose = evt.detail.position;
                     const hitRotation = evt.detail.orientation;
                     if (arModel) {
                         arModel.setAttribute('position', hitPose);
-                        arModel.setAttribute('quaternion', hitRotation);
+                        arModel.object3D.quaternion.copy(hitRotation);
                         arModel.setAttribute('visible', 'true');
                         this.placed = true;
                         sceneEl.setAttribute('ar-hit-test', 'enabled', false);
                         reticle.setAttribute('visible', false);
-                        console.log("Модель успешно размещена через ar-hit-test");
+                        console.log("Фигурка установлена!");
                         if (window.navigator.vibrate) window.navigator.vibrate(50);
                     }
                 });
@@ -171,9 +172,10 @@
 
                 sceneEl.addEventListener('exit-vr', () => {
                     this.arMode = false;
-                    document.body.classList.remove('ar-mode');
                     this.placed = false;
+                    document.body.classList.remove('ar-mode');
                     if (arModel) arModel.setAttribute('visible', false);
+                    sceneEl.setAttribute('ar-hit-test', 'enabled', false);
                 });
 
                 window.addEventListener('touchstart', this.onPointerDown, { passive: false });
