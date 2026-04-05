@@ -34,6 +34,7 @@
         renderer="colorManagement: true; antialias: true; physicallyCorrectLights: true; logarithmicDepthBuffer: true;"
         shadow="type: pcfsoft"
         webxr="requiredFeatures: hit-test; optionalFeatures: dom-overlay; overlayElement: #overlay; referenceSpaceType: local;"
+        ar-hit-test="targetEl: #reticle"
         ar-placement
         log-webxr
         ar-model-sync
@@ -62,10 +63,8 @@
         <a-plane rotation="-90 0 0" position="0 0 0" width="20" height="20" color="#111" opacity="0.3" shadow="receive: true" hide-on-enter-ar></a-plane>
 
         <!-- Ретикуль (прицел) — виден только в AR, пока модель не поставлена -->
-        <a-entity id="reticle"
-                  ar-hit-test="doRaycaster: false"
-                  visible="false">
-            <a-ring rotation="-90 0 0" radius-inner="0.04" radius-outer="0.05" color="#4CC3D9"></a-ring>
+        <a-entity id="reticle" visible="false">
+            <a-ring rotation="-90 0 0" radius-inner="0.02" radius-outer="0.03" color="#4CC3D9"></a-ring>
         </a-entity>
 
         <!-- AR модель: родительский объект для управления положением/поворотом/масштабом -->
@@ -147,14 +146,14 @@
 
                 sceneEl.addEventListener('ar-hit-test-select', (evt) => {
                     if (this.placed) return;
-                    const position = reticle.getAttribute('position');
-                    const orientation = reticle.getAttribute('quaternion');
+                    const hitPose = evt.detail.position;
+                    const hitRotation = evt.detail.orientation;
                     if (arModel) {
-                        arModel.setAttribute('position', position);
-                        arModel.object3D.quaternion.copy(reticle.object3D.quaternion);
+                        arModel.setAttribute('position', hitPose);
+                        arModel.setAttribute('quaternion', hitRotation);
                         arModel.setAttribute('visible', 'true');
                         this.placed = true;
-                        reticle.setAttribute('ar-hit-test', 'enabled', false);
+                        sceneEl.setAttribute('ar-hit-test', 'enabled', false);
                         reticle.setAttribute('visible', false);
                         console.log("Модель успешно размещена через ar-hit-test");
                         if (window.navigator.vibrate) window.navigator.vibrate(50);
@@ -166,6 +165,7 @@
                         this.arMode = true;
                         this.placed = false;
                         document.body.classList.add('ar-mode');
+                        sceneEl.setAttribute('ar-hit-test', 'enabled', true);
                     }
                 });
 
