@@ -478,7 +478,15 @@
         loadFigure(currentFigure);
 
         document.body.addEventListener('contextmenu', (e) => e.preventDefault());
-        window.addEventListener('beforexrselect', (e) => e.preventDefault());
+
+        const overlay = document.getElementById('overlay');
+        if (overlay) {
+            overlay.addEventListener('beforexrselect', (e) => {
+                if (e.target.tagName === 'BUTTON') {
+                    e.preventDefault();
+                }
+            });
+        }
     </script>
 </body>
 </html>
