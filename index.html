@@ -274,27 +274,29 @@
 </head>
 <body>
 
-    <div class="header-title">3D галерея «Коренные народы Сибири»</div>
-    <div id="loading">
-        <div class="spinner"></div>
-        <div>Загрузка...</div>
-    </div>
-    <div id="arrows">
-        <button class="arrow-btn" id="prev-btn">←</button>
-        <button class="arrow-btn" id="next-btn">→</button>
-    </div>
-    <div id="description"></div>
+    <div id="overlay">
+        <div class="header-title">3D галерея «Коренные народы Сибири»</div>
+        <div id="loading">
+            <div class="spinner"></div>
+            <div>Загрузка...</div>
+        </div>
+        <div id="arrows">
+            <button class="arrow-btn" id="prev-btn">←</button>
+            <button class="arrow-btn" id="next-btn">→</button>
+        </div>
+        <div id="description"></div>
 
-    <!-- Кастомная кнопка AR -->
-    <button id="ar-mode-btn" class="custom-ar-button" style="display: none;">AR</button>
-    <div id="ar-unsupported-msg" class="ar-unsupported-msg">
-        ⚠️ Ваше устройство не поддерживает WebXR AR. Доступен только 3D просмотр.
+        <!-- Кастомная кнопка AR -->
+        <button id="ar-mode-btn" class="custom-ar-button" style="display: none;">AR</button>
+        <div id="ar-unsupported-msg" class="ar-unsupported-msg">
+            ⚠️ Ваше устройство не поддерживает WebXR AR. Доступен только 3D просмотр.
+        </div>
     </div>
 
     <a-scene
         renderer="colorManagement: true; antialias: true; physicallyCorrectLights: true; logarithmicDepthBuffer: true;"
         shadow="type: pcfsoft"
-        webxr="optionalFeatures: hit-test, dom-overlay; referenceSpaceType: local; enabled: true;"
+        webxr="requiredFeatures: hit-test; optionalFeatures: dom-overlay; overlayElement: #overlay; referenceSpaceType: local;"
         ar-placement
         log-webxr
         ar-model-sync
@@ -395,10 +397,11 @@
         AFRAME.registerComponent('ar-placement', {
             init: function () {
                 this.arModelParent = document.getElementById('ar-model');
-                this.reticle = null;
                 this.arMode = false;
                 this.placed = false;
-                const sceneEl = this.el;
+                this.hitTestSource = null;
+                this.viewerSpace = null;
+                const sceneEl = this.el.sceneEl;
 
                 // Флаги и переменные для жестов
                 this.isDragging = false;
@@ -408,24 +411,24 @@
                 this.initialAngle = 0;
                 this.initialRotationY = 0;
 
+                // 1. Вход в AR
                 sceneEl.addEventListener('enter-vr', () => {
                     if (sceneEl.is('ar-mode')) {
                         this.arMode = true;
                         this.placed = false;
                         document.body.classList.add('ar-mode');
-                        console.log('AR режим активирован');
 
                         if (this.arModelParent) {
                             this.arModelParent.setAttribute('visible', 'true');
                         }
 
-                        // Запрашиваем hit-test источник
+                        // 2. Инициализация Hit-Test
                         const session = sceneEl.renderer.xr.getSession();
                         if (session) {
-                            session.requestReferenceSpace('viewer').then((refSpace) => {
-                                session.requestHitTestSource({ space: refSpace }).then((source) => {
+                            session.requestReferenceSpace('viewer').then((space) => {
+                                this.viewerSpace = space;
+                                session.requestHitTestSource({ space: this.viewerSpace }).then((source) => {
                                     this.hitTestSource = source;
-                                    console.log('Hit test source получен');
                                 });
                             });
                         }
@@ -442,23 +445,29 @@
                     }
                 });
 
-                // Обработчики касаний
+                // 3. Обработка нажатия через XR-событие select
+                const session = sceneEl.renderer.xr.getSession();
+                if (session) {
+                    session.addEventListener('select', () => {
+                        if (this.arMode && !this.placed && this.arModelParent && this.arModelParent.getAttribute('visible')) {
+                            this.placed = true;
+                            console.log("Модель зафиксирована на поверхности!");
+                        }
+                    });
+                }
+
+                // Настройка жестов (оставляем вашу логику)
                 this.onPointerDown = this.onPointerDown.bind(this);
                 this.onPointerUp = this.onPointerUp.bind(this);
                 this.onPointerMove = this.onPointerMove.bind(this);
-                this.onClick = this.onClick.bind(this);
 
                 window.addEventListener('touchstart', this.onPointerDown, { passive: false });
                 window.addEventListener('touchend', this.onPointerUp);
                 window.addEventListener('touchmove', this.onPointerMove, { passive: false });
-                window.addEventListener('click', this.onClick);
             },
 
-            tick: function (t, dt) {
-                if (!this.arMode || !this.hitTestSource) return;
-
-                // Если модель уже зафиксирована, не обновляем позицию через hit-test
-                if (this.placed) return;
+            tick: function () {
+                if (!this.arMode || !this.hitTestSource || this.placed) return;
 
                 const frame = this.el.sceneEl.frame;
                 const session = this.el.sceneEl.renderer.xr.getSession();
@@ -471,7 +480,8 @@
                     const hit = hitTestResults[0];
                     const pose = hit.getPose(refSpace);
 
-                    // Плавно перемещаем модель по поверхности пола/стола
+                    // Показываем модель и привязываем её к найденной поверхности
+                    this.arModelParent.setAttribute('visible', 'true');
                     this.arModelParent.object3D.position.copy(pose.transform.position);
                     this.arModelParent.object3D.quaternion.copy(pose.transform.orientation);
                 }
@@ -494,16 +504,6 @@
                         x: evt.touches[0].clientX,
                         y: evt.touches[0].clientY
                     };
-                }
-            },
-
-            onClick: function (evt) {
-                if (!this.arMode) return;
-
-                // Первый клик/тап фиксирует модель на поверхности
-                if (!this.placed) {
-                    this.placed = true;
-                    console.log("Модель зафиксирована на поверхности кликом");
                 }
             },
 
