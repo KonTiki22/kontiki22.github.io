@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Галерея Фигурок</title>
+
+    
+    <script src="js/aframe.min.js"></script>
+    <script src="background-gradient.js"></script>
+
+    <style>
+        body { margin: 0; overflow: hidden; font-family: sans-serif; background-color: #111; touch-action: none; }
+        #menu {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            width: 90%; max-width: 800px; display: flex; overflow-x: auto;
+            gap: 10px; padding: 15px; background: rgba(0, 0, 0, 0.7);
+            border-radius: 15px; z-index: 100; scrollbar-width: none;
+        }
+        #menu::-webkit-scrollbar { display: none; }
+        button {
+            padding: 10px 20px; white-space: nowrap; cursor: pointer;
+            background: #fff; border: none; border-radius: 8px;
+            font-weight: bold; transition: background 0.3s;
+        }
+        button:hover { background: #ddd; }
+        button.active { background: #4CC3D9; color: white; }
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&display=swap');
+        .header-title {
+            position: absolute;
+            top: 25px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #fff;
+            font-size: 42px;
+            font-weight: 600;
+            font-family: 'Playfair Display', Georgia, serif;
+            text-shadow: 3px 3px 8px rgba(0,0,0,0.9);
+            z-index: 100;
+            text-align: center;
+            letter-spacing: 2px;
+            padding: 20px 30px;
+            background: rgba(0,0,0,0.5);
+            border-radius: 15px;
+            backdrop-filter: blur(8px);
+            max-width: 90%;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header-title">3D галерея экспонатов выставки «Коренные народы Сибири»</div>
+    <div id="menu"></div>
+
+    <a-scene 
+        renderer="colorManagement: true; antialias: true; physicallyCorrectLights: true; logarithmicDepthBuffer: true;"
+        shadow="type: pcfsoft"
+        gallery-controls>
+        
+        <a-sky material="shader: background-gradient; colorTop: #666666; colorBottom: #1a1a1a;" geometry="primitive: sphere; radius: 500; thetaLength: 64; phiLength: 64; thetaSegments: 64; phiSegments: 64;"></a-sky>
+
+        <!-- ОСВЕЩЕНИЕ -->
+        <a-entity light="type: ambient; intensity: 1.0;"></a-entity>
+        <a-entity id="main-light"
+                  position="3 5 4"
+                  light="type: directional; intensity: 1.5; castShadow: true; shadowBias: -0.001; shadowMapHeight: 2048; shadowMapWidth: 2048; shadowCameraLeft: -4; shadowCameraRight: 4; shadowCameraTop: 4; shadowCameraBottom: -4;">
+        </a-entity>
+
+        <!-- ЦЕНТРАЛЬНАЯ ОСЬ ДЛЯ ВРАЩЕНИЯ -->
+        <!-- Именно этот блок мы будем крутить мышкой -->
+        <a-entity id="model-wrapper" position="0 0 0">
+            <!-- Сама фигурка -->
+            <a-entity id="main-model"
+                      gltf-model="models/Figure_1.glb" 
+                      shadow="cast: true; receive: true">
+            </a-entity>
+        </a-entity>
+        
+        <!-- Пол для тени -->
+        <a-plane rotation="-90 0 0" position="0 0 0" width="20" height="20" color="#000" opacity="0.2" shadow="receive: true"></a-plane>
+
+        <!-- СТАТИЧНАЯ КАМЕРА (больше никаких конфликтов орбиты) -->
+        <a-entity id="main-camera" camera
+                  look-controls="enabled: false"
+                  wasd-controls="enabled: false"
+                  look-at="0 0 0"
+                  position="0 0 4">
+        </a-entity>
+
+    </a-scene>
+
+    <script>
+        AFRAME.registerComponent('gallery-controls', {
+            init: function () {
+                this.wrapper = document.getElementById('model-wrapper');
+                this.camera = document.getElementById('main-camera');
+                
+                this.isDragging = false;
+                this.previousPos = { x: 0, y: 0 };
+                
+                // Настройки зума
+                this.zoom = 4; // стартовая дистанция камеры
+                this.minZoom = 1.5;
+                this.maxZoom = 10;
+                
+                this.initialDistance = 0;
+                this.initialZoom = 4;
+
+                this.onPointerDown = this.onPointerDown.bind(this);
+                this.onPointerUp = this.onPointerUp.bind(this);
+                this.onPointerMove = this.onPointerMove.bind(this);
+                this.onWheel = this.onWheel.bind(this);
+
+                document.addEventListener('mousedown', this.onPointerDown);
+                document.addEventListener('mouseup', this.onPointerUp);
+                document.addEventListener('mousemove', this.onPointerMove);
+                
+                document.addEventListener('touchstart', this.onPointerDown, {passive: false});
+                document.addEventListener('touchend', this.onPointerUp);
+                document.addEventListener('touchmove', this.onPointerMove, {passive: false});
+                
+                document.addEventListener('wheel', this.onWheel, {passive: false});
+            },
+            onPointerDown: function (evt) {
+                if (evt.target.tagName === 'BUTTON') return; // не блокируем клик по меню
+                this.isDragging = true;
+                
+                if (evt.touches && evt.touches.length === 2) {
+                    this.initialDistance = Math.hypot(
+                        evt.touches[0].clientX - evt.touches[1].clientX,
+                        evt.touches[0].clientY - evt.touches[1].clientY
+                    );
+                    this.initialZoom = this.zoom;
+                } else {
+                    let clientX = evt.touches ? evt.touches[0].clientX : evt.clientX;
+                    let clientY = evt.touches ? evt.touches[0].clientY : evt.clientY;
+                    this.previousPos = { x: clientX, y: clientY };
+                }
+            },
+            onPointerUp: function () {
+                this.isDragging = false;
+            },
+            onPointerMove: function (evt) {
+                if (!this.isDragging) return;
+                
+                // Обработка щипка (ЗУМ на смартфоне)
+                if (evt.touches && evt.touches.length === 2) {
+                    evt.preventDefault();
+                    let currentDistance = Math.hypot(
+                        evt.touches[0].clientX - evt.touches[1].clientX,
+                        evt.touches[0].clientY - evt.touches[1].clientY
+                    );
+                    let zoomFactor = this.initialDistance / currentDistance;
+                    this.zoom = this.initialZoom * zoomFactor;
+                    this.zoom = Math.max(this.minZoom, Math.min(this.zoom, this.maxZoom));
+                    this.camera.setAttribute('position', `0 0 ${this.zoom}`);
+                    return;
+                }
+
+                // Обработка вращения (Один палец / Мышь)
+                evt.preventDefault();
+                let clientX = evt.touches ? evt.touches[0].clientX : evt.clientX;
+                let clientY = evt.touches ? evt.touches[0].clientY : evt.clientY;
+                
+                let deltaX = clientX - this.previousPos.x;
+                let deltaY = clientY - this.previousPos.y;
+
+                let rot = this.wrapper.getAttribute('rotation');
+                // Крутим модель по Y (влево/вправо) и немного по X (вверх/вниз)
+                this.wrapper.setAttribute('rotation', {
+                    x: Math.max(-180, Math.min(180, rot.x + deltaY * 0.2)), // ограничение наклона
+                    y: rot.y + deltaX * 0.2,
+                    z: rot.z
+                });
+
+                this.previousPos = { x: clientX, y: clientY };
+            },
+            onWheel: function (evt) {
+                evt.preventDefault();
+                // Зум колесиком мыши (двигаем камеру)
+                this.zoom += evt.deltaY * 0.005;
+                this.zoom = Math.max(this.minZoom, Math.min(this.zoom, this.maxZoom));
+                this.camera.setAttribute('position', `0 0 ${this.zoom}`);
+            }
+        });
+
+        // 3. АВТО-МАСШТАБИРОВАНИЕ И ЦЕНТРИРОВАНИЕ
+        const modelEntity = document.getElementById('main-model');
+        const wrapperEntity = document.getElementById('model-wrapper');
+        const TARGET_SIZE = 2.8; 
+
+        function processModel() {
+            const mesh = modelEntity.getObject3D('mesh');
+            if (!mesh) return;
+
+            // 1. Сброс трансформаций
+            modelEntity.object3D.scale.set(1, 1, 1);
+            modelEntity.object3D.position.set(0, 0, 0);
+            modelEntity.object3D.updateMatrixWorld(true);
+
+            // 2. Расчет размеров
+            const box = new THREE.Box3().setFromObject(mesh);
+            const size = new THREE.Vector3(); box.getSize(size);
+            const maxDim = Math.max(size.x, size.y, size.z);
+            if (maxDim === 0) return;
+
+            // 3. Масштабирование
+            const scaleFactor = TARGET_SIZE / maxDim;
+            modelEntity.object3D.scale.set(scaleFactor, scaleFactor, scaleFactor);
+            modelEntity.object3D.updateMatrixWorld(true);
+
+            // 4. ИДЕАЛЬНОЕ ЦЕНТРИРОВАНИЕ (Вокруг центра масс)
+            const scaledBox = new THREE.Box3().setFromObject(mesh);
+            const center = new THREE.Vector3(); scaledBox.getCenter(center);
+
+            // ТЕПЕРЬ МЫ ИСПОЛЬЗУЕМ -center.y вместо -scaledBox.min.y
+            // Это совместит центр модели с центром вращения Wrapper-а
+            modelEntity.object3D.position.set(-center.x, -center.y, -center.z);
+            modelEntity.object3D.updateMatrixWorld(true);
+
+            // 5. Опускаем пол под ноги модели (чтобы она не "тонула")
+            // Мы берем нижнюю точку модели после центрирования
+            const floorY = scaledBox.min.y - center.y;
+            document.querySelector('a-plane').setAttribute('position', `0 ${floorY} 0`);
+
+            // 6. Сглаживание и тени (фиксим полосы)
+            mesh.traverse(node => {
+                if (node.isMesh) {
+                    node.castShadow = true;
+                    node.receiveShadow = true;
+                    node.geometry.computeVertexNormals();
+                    if (node.material) {
+                        node.material.flatShading = false;
+                        node.material.shadowSide = THREE.FrontSide;
+                        node.material.needsUpdate = true;
+                    }
+                }
+            });
+        }
+
+        modelEntity.addEventListener('model-loaded', processModel);
+
+        // 4. МЕНЮ
+        const menu = document.getElementById('menu');
+        for (let i = 1; i <= 18; i++) {
+            const btn = document.createElement('button');
+            btn.innerText = `Figure ${i}`;
+            if (i === 1) btn.classList.add('active');
+            
+            btn.onclick = () => {
+                document.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                
+                // При загрузке новой модели сбрасываем ее позицию и возвращаем вращение в 0
+                modelEntity.object3D.scale.set(1, 1, 1);
+                modelEntity.object3D.position.set(0, 0, 0);
+                modelEntity.object3D.updateMatrixWorld(true);
+                wrapperEntity.setAttribute('rotation', '0 0 0');
+                
+                modelEntity.setAttribute('gltf-model', `models/Figure_${i}.glb`);
+            };
+            menu.appendChild(btn);
+        }
+    </script>
+</body>
+</html>

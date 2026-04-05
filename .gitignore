@@ -1,0 +1,13 @@
+# Временные файлы
+.zencoder/
+.zenflow/
+
+# IDE и редакторы
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ОС
+.DS_Store
+Thumbs.db
