@@ -5,10 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>3D Галерея Фигурок</title>
 
-
-    
-    
-    
     <script src="js/aframe.min.js"></script>
     <script src="background-gradient.js"></script>
 
@@ -157,10 +153,10 @@
     <a-scene
         renderer="colorManagement: true; antialias: true; physicallyCorrectLights: true; logarithmicDepthBuffer: true;"
         shadow="type: pcfsoft"
-        webxr="optionalFeatures: hit-test, local-floor, anchors; referenceSpaceType: local;"
-        vr-mode-ui="enabled: true; arMode: true;"
-        ar-hit-test="target: #ar-model; type: footprint;"
-        log-hit-test
+        webxr="optionalFeatures: hit-test; referenceSpaceType: local;"
+        vr-mode-ui="enabled: true;"
+        ar-placement
+        log-webxr
         ar-model-sync
         gallery-controls>
 
@@ -186,8 +182,8 @@
         <!-- Пол для тени -->
         <a-plane rotation="-90 0 0" position="0 0 0" width="20" height="20" color="#000" opacity="0.2" shadow="receive: true" hide-on-enter-ar></a-plane>
 
-        <!-- AR модель для размещения на поверхности -->
-        <a-entity id="ar-model" visible="false">
+        <!-- AR модель для размещения -->
+        <a-entity id="ar-model" visible="false" position="0 -0.5 -1">
             <a-entity id="ar-model-inner"
                       gltf-model="models/Figure_1.glb"
                       shadow="cast: true; receive: true">
@@ -205,24 +201,77 @@
     </a-scene>
 
     <script>
-        // Логирование событий hit-test для отладки
-        AFRAME.registerComponent('log-hit-test', {
+        // Проверка поддержки AR
+        function isARSupported() {
+            return 'xr' in navigator && 'isSessionSupported' in navigator.xr;
+        }
+
+        // Кастомный компонент для AR размещения
+        AFRAME.registerComponent('ar-placement', {
+            init: function () {
+                this.arModel = document.getElementById('ar-model');
+                this.arMode = false;
+
+                this.el.sceneEl.addEventListener('enter-vr', async (evt) => {
+                    if (evt.detail.session.mode === 'immersive-ar') {
+                        this.arMode = true;
+                        document.body.classList.add('ar-mode');
+                        console.log('AR mode activated');
+
+                        // Показываем AR модель
+                        this.arModel.setAttribute('visible', 'true');
+                        this.arModel.setAttribute('position', '0 -0.5 -1');
+                    }
+                });
+
+                this.el.sceneEl.addEventListener('exit-vr', () => {
+                    this.arMode = false;
+                    document.body.classList.remove('ar-mode');
+                    console.log('AR mode deactivated');
+
+                    // Скрываем AR модель
+                    this.arModel.setAttribute('visible', 'false');
+                });
+
+                // Обработка кликов для перемещения модели в AR
+                this.el.sceneEl.addEventListener('click', (evt) => {
+                    if (!this.arMode) return;
+
+                    // Если клик не по интерфейсу
+                    if (evt.target.tagName !== 'BUTTON') {
+                        // Перемещаем модель к точке клика
+                        const point = evt.detail.intersection.point;
+                        if (point) {
+                            this.arModel.setAttribute('position', point);
+                        }
+                    }
+                });
+            }
+        });
+
+        // Логирование событий WebXR
+        AFRAME.registerComponent('log-webxr', {
             init: function () {
                 var sceneEl = this.el;
-                sceneEl.addEventListener('ar-hit-test-start', function () {
-                    console.log('AR Hit Test started. Move your phone around.');
-                });
-                sceneEl.addEventListener('ar-hit-test-achieved', function (evt) {
-                    console.log('Surface detected! Tap the screen to place an object.');
-                });
-                sceneEl.addEventListener('ar-hit-test-select', function (evt) {
-                    console.log('Object placed at a new location!');
-                });
-                sceneEl.addEventListener('enter-vr', function () {
-                    document.body.classList.add('ar-mode');
+
+                // Проверяем поддержку при загрузке
+                if (isARSupported()) {
+                    navigator.xr.isSessionSupported('immersive-ar').then((supported) => {
+                        if (supported) {
+                            console.log('AR is supported on this device');
+                        } else {
+                            console.log('AR is not supported, VR mode will be used');
+                        }
+                    });
+                } else {
+                    console.log('WebXR is not supported on this device');
+                }
+
+                sceneEl.addEventListener('enter-vr', function (evt) {
+                    console.log('Entering VR/AR mode:', evt.detail.session.mode);
                 });
                 sceneEl.addEventListener('exit-vr', function () {
-                    document.body.classList.remove('ar-mode');
+                    console.log('Exiting VR/AR mode');
                 });
             }
         });
