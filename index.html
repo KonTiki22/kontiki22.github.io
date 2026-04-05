@@ -12,6 +12,43 @@
 
     <style>
         body { margin: 0; overflow: hidden; font-family: sans-serif; background-color: #111; touch-action: none; }
+        
+        /* Скрываем стандартную кнопку VR */
+        .a-enter-vr-button, .a-enter-vr-modal {
+            display: none !important;
+        }
+        
+        .ar-button {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            padding: 10px 20px;
+            background: rgba(76, 195, 217, 0.9);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            z-index: 1000;
+            transition: background 0.3s, transform 0.2s;
+        }
+        .ar-button:hover {
+            background: rgba(76, 195, 217, 1);
+            transform: scale(1.05);
+        }
+        .ar-button.active {
+            background: rgba(255, 87, 87, 0.9);
+        }
+        
+        @media (min-width: 768px) {
+            .ar-button {
+                top: 20px;
+                right: 20px;
+                font-size: 16px;
+                padding: 12px 24px;
+            }
+        }
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&display=swap');
         
         .header-title {
@@ -145,10 +182,17 @@
     </div>
     <div id="description"></div>
 
+    <button id="ar-btn" class="ar-button">AR</button>
+
     <a-scene 
         renderer="colorManagement: true; antialias: true; physicallyCorrectLights: true; logarithmicDepthBuffer: true;"
         shadow="type: pcfsoft"
-        gallery-controls>
+        gallery-controls
+        ar-hit-test
+        vr-mode-ui="enabled: false"
+        webxr="optionalFeatures: hit-test, dom-overlay; overlayElement: #dom-overlay;">
+        
+        <a-entity id="ar-cursor" visible="false" geometry="primitive: ring; radius: 0.05; radiusTubular: 0.01" material="color: #4CC3D9"></a-entity>
         
         <a-sky material="shader: background-gradient; colorTop: #666666; colorBottom: #1a1a1a;" geometry="primitive: sphere; radius: 500; thetaLength: 64; phiLength: 64; thetaSegments: 64; phiSegments: 64;"></a-sky>
 
@@ -183,6 +227,78 @@
     </a-scene>
 
     <script>
+        // Компонент для AR hit-test
+        AFRAME.registerComponent('ar-hit-test', {
+            init: function () {
+                this.el.sceneEl.addEventListener('enter-vr', () => {
+                    if (this.el.sceneEl.is('ar-mode')) {
+                        this.setupHitTest();
+                    }
+                });
+                
+                this.el.sceneEl.addEventListener('exit-vr', () => {
+                    this.cleanupHitTest();
+                });
+            },
+            
+            setupHitTest: function () {
+                const session = this.el.sceneEl.renderer.xr.getSession();
+                if (!session) return;
+                
+                this.hitTestSource = null;
+                this.hitTestRequest = null;
+                
+                session.requestReferenceSpace('viewer').then((referenceSpace) => {
+                    session.requestHitTestSource({ space: referenceSpace }).then((source) => {
+                        this.hitTestSource = source;
+                    });
+                });
+                
+                this.xrReferenceSpace = session.referenceSpace;
+                this.el.sceneEl.renderer.xr.setAnimationLoop(this.onXRFrame.bind(this));
+            },
+            
+            cleanupHitTest: function () {
+                if (this.hitTestSource) {
+                    this.hitTestSource.cancel();
+                    this.hitTestSource = null;
+                }
+                this.el.sceneEl.renderer.xr.setAnimationLoop(null);
+            },
+            
+            onXRFrame: function (time, frame) {
+                const session = frame.session;
+                const referenceSpace = this.xrReferenceSpace;
+                const basePose = frame.getViewerPose(referenceSpace);
+                
+                if (!this.hitTestSource || !basePose) return;
+                
+                const hitTestResults = frame.getHitTestResults(this.hitTestSource);
+                
+                if (hitTestResults.length > 0) {
+                    const hit = hitTestResults[0];
+                    const hitPose = hit.getPose(referenceSpace);
+                    
+                    // Обновляем позицию курсора
+                    const position = hitPose.transform.position;
+                    const quaternion = hitPose.transform.orientation;
+                    
+                    arCursor.setAttribute('position', {
+                        x: position.x,
+                        y: position.y,
+                        z: position.z - 0.01
+                    });
+                    
+                    // Обновляем позицию модели
+                    wrapperEntity.setAttribute('position', {
+                        x: position.x,
+                        y: position.y,
+                        z: position.z
+                    });
+                }
+            }
+        });
+
         AFRAME.registerComponent('gallery-controls', {
             init: function () {
                 this.wrapper = document.getElementById('model-wrapper');
@@ -259,9 +375,14 @@
                 let deltaY = clientY - this.previousPos.y;
 
                 let rot = this.wrapper.getAttribute('rotation');
+                // Корректируем deltaY в зависимости от ориентации модели по оси Y
+                // чтобы вращение по X всегда было интуитивно понятным
+                let rotYRad = rot.y * Math.PI / 180;
+                let adjustedDeltaY = deltaY * Math.cos(rotYRad);
+                
                 // Крутим модель по Y (влево/вправо) и немного по X (вверх/вниз)
                 this.wrapper.setAttribute('rotation', {
-                    x: Math.max(-180, Math.min(180, rot.x + deltaY * 0.2)), // ограничение наклона
+                    x: Math.max(-180, Math.min(180, rot.x + adjustedDeltaY * 0.2)), // ограничение наклона
                     y: rot.y + deltaX * 0.2,
                     z: rot.z
                 });
@@ -398,6 +519,63 @@
 
         // Загружаем первую фигурку
         loadFigure(currentFigure);
-    </script>
+
+        // 5. AR РЕЖИМ
+        const arBtn = document.getElementById('ar-btn');
+        const scene = document.querySelector('a-scene');
+        let isARActive = false;
+        const arCursor = document.getElementById('ar-cursor');
+
+        arBtn.onclick = () => {
+            if (!isARActive) {
+                scene.enterVR();
+            } else {
+                scene.exitVR();
+            }
+        };
+
+        scene.addEventListener('enter-vr', () => {
+            isARActive = scene.is('ar-mode');
+            if (isARActive) {
+                arBtn.classList.add('active');
+                arBtn.textContent = 'Exit AR';
+                
+                // Скрываем элементы UI в AR режиме
+                document.querySelector('.header-title').style.display = 'none';
+                document.getElementById('description').style.display = 'none';
+                document.getElementById('arrows').style.display = 'none';
+                
+                // Скрываем фон и пол в AR режиме
+                document.querySelector('a-sky').setAttribute('visible', false);
+                document.querySelector('a-plane').setAttribute('visible', false);
+                
+                // Показываем курсор для hit-test
+                arCursor.setAttribute('visible', true);
+                
+                // Настраиваем модель для AR
+                wrapperEntity.setAttribute('position', '0 0 -0.5');
+            }
+        });
+
+        scene.addEventListener('exit-vr', () => {
+            isARActive = false;
+            arBtn.classList.remove('active');
+            arBtn.textContent = 'AR';
+            
+            // Показываем элементы UI после выхода из AR
+            document.querySelector('.header-title').style.display = 'block';
+            document.getElementById('description').style.display = 'block';
+            document.getElementById('arrows').style.display = 'flex';
+            
+            // Восстанавливаем фон и пол
+            document.querySelector('a-sky').setAttribute('visible', true);
+            document.querySelector('a-plane').setAttribute('visible', true);
+            
+            // Скрываем курсор hit-test
+            arCursor.setAttribute('visible', false);
+            
+            // Восстанавливаем позицию модели
+            wrapperEntity.setAttribute('position', '0 0 0');
+        });
 </body>
 </html>
