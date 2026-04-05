@@ -157,7 +157,8 @@
     <a-scene
         renderer="colorManagement: true; antialias: true; physicallyCorrectLights: true; logarithmicDepthBuffer: true;"
         shadow="type: pcfsoft"
-        webxr="optionalFeatures: hit-test;"
+        webxr="optionalFeatures: hit-test, local-floor, anchors; referenceSpaceType: local;"
+        vr-mode-ui="enabled: true; arMode: true;"
         ar-hit-test="target: #ar-model; type: footprint;"
         log-hit-test
         ar-model-sync
