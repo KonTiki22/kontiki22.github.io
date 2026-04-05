@@ -335,7 +335,7 @@
         <a-entity id="main-camera" camera
                   look-controls="enabled: false"
                   wasd-controls="enabled: false"
-                  position="0 0 4">
+                  position="0 0 0.25">
         </a-entity>
 
     </a-scene>
@@ -589,17 +589,17 @@
                 this.camera = document.getElementById('main-camera');
                 this.isDragging = false;
                 this.previousPos = { x: 0, y: 0 };
-                this.zoom = 4.0;
-                this.minZoom = 1.6;
-                this.maxZoom = 9.0;
+                this.zoom = 0.25;
+                this.minZoom = 0.15;
+                this.maxZoom = 0.5;
                 this.initialDistance = 0;
-                this.initialZoom = 4;
-                
+                this.initialZoom = 0.25;
+
                 this.onPointerDown = this.onPointerDown.bind(this);
                 this.onPointerUp = this.onPointerUp.bind(this);
                 this.onPointerMove = this.onPointerMove.bind(this);
                 this.onWheel = this.onWheel.bind(this);
-                
+
                 document.addEventListener('mousedown', this.onPointerDown);
                 document.addEventListener('mouseup', this.onPointerUp);
                 document.addEventListener('mousemove', this.onPointerMove);
@@ -607,7 +607,7 @@
                 document.addEventListener('touchend', this.onPointerUp);
                 document.addEventListener('touchmove', this.onPointerMove, { passive: false });
                 document.addEventListener('wheel', this.onWheel, { passive: false });
-                
+
                 this.camera.setAttribute('position', `0 0 ${this.zoom}`);
             },
             onPointerDown: function (evt) {
