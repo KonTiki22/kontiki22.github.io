@@ -228,7 +228,7 @@
             pointer-events: none !important;
         }
 
-        /* Скрываем стандартную AR-кнопку A-Frame, если вдруг появляется (чтобы не дублировать) */
+        /* Скрываем стандартную AR-кнопку A-Frame */
         .a-enter-ar {
             display: none !important;
         }
@@ -285,7 +285,7 @@
     </div>
     <div id="description"></div>
 
-    <!-- Кастомная кнопка AR (появляется только если поддерживается) -->
+    <!-- Кастомная кнопка AR -->
     <button id="ar-mode-btn" class="custom-ar-button" style="display: none;">AR</button>
     <div id="ar-unsupported-msg" class="ar-unsupported-msg">
         ⚠️ Ваше устройство не поддерживает WebXR AR. Доступен только 3D просмотр.
@@ -300,7 +300,6 @@
         ar-model-sync
         gallery-controls>
 
-        <!-- Фоновый градиентный небосвод (скрывается в AR) -->
         <a-sky material="shader: background-gradient; colorTop: #1e2a3a; colorBottom: #0a0a0a;" geometry="primitive: sphere; radius: 500; thetaLength: 64; phiLength: 64;" hide-on-enter-ar></a-sky>
 
         <!-- Освещение -->
@@ -310,30 +309,29 @@
                   light="type: directional; intensity: 1.6; castShadow: true; shadowBias: -0.0005; shadowMapHeight: 2048; shadowMapWidth: 2048; shadowCameraLeft: -4; shadowCameraRight: 4; shadowCameraTop: 4; shadowCameraBottom: -4;">
         </a-entity>
 
-        <!-- Дополнительный мягкий fill свет -->
         <a-entity light="type: hemisphere; intensity: 0.5; color: #ffffff; groundColor: #443322;"></a-entity>
 
-        <!-- Центральная ось для вращения модели (управление жестами) -->
+        <!-- Центральная ось для вращения модели в обычном режиме -->
         <a-entity id="model-wrapper" position="0 0 0">
-            <!-- Основная 3D модель -->
             <a-entity id="main-model"
                       gltf-model="models/Figure_1.glb" 
                       shadow="cast: true; receive: true">
             </a-entity>
         </a-entity>
         
-        <!-- Пол для тени (виртуальная поверхность) -->
+        <!-- Пол для тени -->
         <a-plane rotation="-90 0 0" position="0 0 0" width="20" height="20" color="#111" opacity="0.3" shadow="receive: true" hide-on-enter-ar></a-plane>
 
-        <!-- AR модель (размещается в пространстве AR) -->
-        <a-entity id="ar-model" visible="false" position="0 -0.3 -1.0">
+        <!-- AR модель: родительский объект для управления положением/поворотом/масштабом -->
+        <a-entity id="ar-model" visible="false">
+            <!-- Внутренняя модель, которую будем центрировать и масштабировать один раз для нужного размера -->
             <a-entity id="ar-model-inner"
                       gltf-model="models/Figure_1.glb"
                       shadow="cast: true; receive: true">
             </a-entity>
         </a-entity>
 
-        <!-- Статичная камера для десктопа/мобильного просмотра (без look-controls, вращение только через wrapper) -->
+        <!-- Статичная камера для обычного режима -->
         <a-entity id="main-camera" camera
                   look-controls="enabled: false"
                   wasd-controls="enabled: false"
@@ -343,7 +341,7 @@
     </a-scene>
 
     <script>
-        // ========== 1. ПРОВЕРКА ПОДДЕРЖКИ AR И УПРАВЛЕНИЕ КНОПКОЙ ==========
+        // ========== 1. ПРОВЕРКА ПОДДЕРЖКИ AR ==========
         const arButton = document.getElementById('ar-mode-btn');
         const unsupportedMsg = document.getElementById('ar-unsupported-msg');
         let isArSupportedFlag = false;
@@ -356,15 +354,13 @@
                         isArSupportedFlag = true;
                         arButton.style.display = 'flex';
                         unsupportedMsg.style.display = 'none';
-                        console.log('✅ AR поддерживается, кнопка AR активна');
+                        console.log('AR поддерживается');
                     } else {
                         isArSupportedFlag = false;
                         arButton.style.display = 'none';
                         unsupportedMsg.style.display = 'block';
-                        console.log('❌ AR НЕ поддерживается');
                     }
                 } catch (err) {
-                    console.warn('Ошибка проверки AR:', err);
                     isArSupportedFlag = false;
                     arButton.style.display = 'none';
                     unsupportedMsg.style.display = 'block';
@@ -373,47 +369,38 @@
                 isArSupportedFlag = false;
                 arButton.style.display = 'none';
                 unsupportedMsg.style.display = 'block';
-                console.log('❌ WebXR не найден');
             }
         }
-
         checkARSupport();
 
-        // ========== 2. ВХОД В AR РЕЖИМ ПО КНОПКЕ ==========
         async function enterAR() {
             const sceneEl = document.querySelector('a-scene');
             if (!sceneEl) return;
-            
             if (!isArSupportedFlag) {
-                alert('К сожалению, ваше устройство не поддерживает дополненную реальность (WebXR AR)');
+                alert('Ваше устройство не поддерживает WebXR AR');
                 return;
             }
-            
             try {
                 await sceneEl.enterVR({ mode: 'immersive-ar' });
-                console.log('AR сессия запущена');
             } catch (err) {
-                console.error('Ошибка входа в AR:', err);
-                alert('Не удалось запустить AR. Возможно, требуется разрешение камеры или устройство не совместимо.');
+                console.error(err);
+                alert('Не удалось запустить AR');
             }
         }
-
         arButton.addEventListener('click', enterAR);
 
-        // ========== 3. КОМПОНЕНТЫ ДЛЯ A-FRAME ==========
+        // ========== 2. КОМПОНЕНТЫ ДЛЯ A-FRAME ==========
         
-        // Компонент для AR: перемещение (один палец), масштабирование и вращение (два пальца)
+        // Компонент AR-управления: перемещение (1 палец), масштаб и вращение (2 пальца)
         AFRAME.registerComponent('ar-placement', {
             init: function () {
-                this.arModel = document.getElementById('ar-model');
+                this.arModelParent = document.getElementById('ar-model');
                 this.arMode = false;
                 const sceneEl = this.el;
 
-                // Переменные для управления
+                // Флаги и переменные для жестов
                 this.isDragging = false;
                 this.previousPos = { x: 0, y: 0 };
-                
-                // Для двух пальцев (масштаб и вращение)
                 this.initialDistance = 0;
                 this.initialScale = 1;
                 this.initialAngle = 0;
@@ -423,15 +410,14 @@
                     if (evt.detail && evt.detail.session && evt.detail.session.mode === 'immersive-ar') {
                         this.arMode = true;
                         document.body.classList.add('ar-mode');
-                        console.log('AR mode activated');
-
-                        if (this.arModel) {
-                            this.arModel.setAttribute('visible', 'true');
-                            this.arModel.setAttribute('rotation', '0 0 0');
-                            this.arModel.object3D.scale.set(1, 1, 1);
-                            // Начальная позиция перед пользователем
-                            this.arModel.setAttribute('position', '0 -0.3 -1.0');
-                            console.log('AR model visible, position set');
+                        console.log('AR режим активирован');
+                        
+                        if (this.arModelParent) {
+                            this.arModelParent.setAttribute('visible', 'true');
+                            // Начальная позиция перед камерой
+                            this.arModelParent.setAttribute('position', '0 -0.3 -1.0');
+                            this.arModelParent.setAttribute('rotation', '0 0 0');
+                            // Масштаб будет установлен после загрузки модели через ar-model-sync
                         }
                     }
                 });
@@ -439,17 +425,16 @@
                 sceneEl.addEventListener('exit-vr', () => {
                     this.arMode = false;
                     document.body.classList.remove('ar-mode');
-                    console.log('AR mode deactivated');
-                    if (this.arModel) {
-                        this.arModel.setAttribute('visible', 'false');
+                    if (this.arModelParent) {
+                        this.arModelParent.setAttribute('visible', 'false');
                     }
                 });
 
-                // Обработчики касаний на canvas
+                // Обработчики касаний
                 this.onPointerDown = this.onPointerDown.bind(this);
                 this.onPointerUp = this.onPointerUp.bind(this);
                 this.onPointerMove = this.onPointerMove.bind(this);
-
+                
                 const canvas = document.querySelector('canvas');
                 if (canvas) {
                     canvas.addEventListener('touchstart', this.onPointerDown, { passive: false });
@@ -462,25 +447,20 @@
                 if (!this.arMode) return;
                 
                 if (evt.touches.length === 2) {
-                    // Два пальца: запоминаем расстояние и угол для масштабирования и вращения
                     const dx = evt.touches[0].clientX - evt.touches[1].clientX;
                     const dy = evt.touches[0].clientY - evt.touches[1].clientY;
                     this.initialDistance = Math.hypot(dx, dy);
-                    this.initialScale = this.arModel.object3D.scale.x;
-                    
+                    this.initialScale = this.arModelParent.object3D.scale.x;
                     this.initialAngle = Math.atan2(dy, dx);
-                    const rot = this.arModel.getAttribute('rotation');
+                    const rot = this.arModelParent.getAttribute('rotation');
                     this.initialRotationY = rot.y;
-                    
-                    console.log('Two-finger start: dist=', this.initialDistance, 'angle=', this.initialAngle);
-                } else if (evt.touches.length === 1) {
-                    // Один палец: начинаем перемещение
+                } 
+                else if (evt.touches.length === 1) {
                     this.isDragging = true;
                     this.previousPos = {
                         x: evt.touches[0].clientX,
                         y: evt.touches[0].clientY
                     };
-                    console.log('One-finger drag start');
                 }
             },
 
@@ -493,70 +473,57 @@
 
                 if (evt.touches.length === 2) {
                     evt.preventDefault();
-                    // Масштабирование и вращение двумя пальцами
                     const dx = evt.touches[0].clientX - evt.touches[1].clientX;
                     const dy = evt.touches[0].clientY - evt.touches[1].clientY;
                     const currentDistance = Math.hypot(dx, dy);
                     const currentAngle = Math.atan2(dy, dx);
                     
-                    // Масштаб
+                    // Масштабирование
                     let scale = this.initialScale * (currentDistance / this.initialDistance);
                     scale = Math.max(0.1, Math.min(5.0, scale));
-                    this.arModel.object3D.scale.set(scale, scale, scale);
+                    this.arModelParent.object3D.scale.set(scale, scale, scale);
                     
                     // Вращение вокруг вертикальной оси
                     let deltaAngle = currentAngle - this.initialAngle;
                     let newRotY = this.initialRotationY + deltaAngle * (180 / Math.PI);
-                    this.arModel.setAttribute('rotation', { x: 0, y: newRotY, z: 0 });
-                    
-                    console.log('Two-finger: scale=', scale, 'rotY=', newRotY);
+                    this.arModelParent.setAttribute('rotation', { x: 0, y: newRotY, z: 0 });
                 } 
                 else if (this.isDragging && evt.touches.length === 1) {
                     evt.preventDefault();
-                    // Перемещение модели по поверхности (X и Z)
                     const clientX = evt.touches[0].clientX;
                     const clientY = evt.touches[0].clientY;
-                    
                     const deltaX = clientX - this.previousPos.x;
                     const deltaY = clientY - this.previousPos.y;
                     
-                    // Коэффициент чувствительности: перемещение по экрану -> движение в метрах
-                    // Чем ближе модель к камере, тем меньше должно быть смещение, но для простоты используем фиксированный множитель
                     const speed = 0.008;
-                    let newPos = this.arModel.getAttribute('position');
-                    // Перемещение по X (влево-вправо) и по Z (вперёд-назад относительно взгляда)
-                    // Просто смещаем по мировым осям X и Z, что интуитивно понятно при стандартном положении камеры
-                    newPos.x -= deltaX * speed;
-                    newPos.z += deltaY * speed;   // движение пальцем вверх отдаляет модель, вниз приближает
-                    
-                    // Ограничиваем зону перемещения, чтобы модель не улетала слишком далеко
-                    newPos.x = Math.max(-2.5, Math.min(2.5, newPos.x));
-                    newPos.z = Math.max(-3.0, Math.min(1.0, newPos.z));
-                    
-                    this.arModel.setAttribute('position', newPos);
+                    let pos = this.arModelParent.getAttribute('position');
+                    pos.x -= deltaX * speed;
+                    pos.z += deltaY * speed;
+                    pos.x = Math.max(-2.5, Math.min(2.5, pos.x));
+                    pos.z = Math.max(-3.0, Math.min(1.0, pos.z));
+                    this.arModelParent.setAttribute('position', pos);
                     this.previousPos = { x: clientX, y: clientY };
-                    console.log('Move: pos=', newPos);
                 }
             }
         });
 
-        // Логирование WebXR
         AFRAME.registerComponent('log-webxr', {
             init: function () {
                 const sceneEl = this.el;
                 sceneEl.addEventListener('enter-vr', (evt) => {
-                    console.log('Вход в VR/AR режим:', evt.detail.session.mode);
+                    console.log('Режим:', evt.detail.session.mode);
                 });
                 sceneEl.addEventListener('exit-vr', () => {
-                    console.log('Выход из VR/AR режима');
+                    console.log('Выход из VR/AR');
                 });
             }
         });
 
-        // Синхронизация AR модели с текущей фигуркой
+        // Синхронизация AR модели: замена модели и правильное масштабирование под реальный размер
         AFRAME.registerComponent('ar-model-sync', {
             init: function () {
                 this.arModelInner = document.getElementById('ar-model-inner');
+                this.arModelParent = document.getElementById('ar-model');
                 this.currentFigure = 1;
                 const sceneEl = this.el;
                 
@@ -567,23 +534,64 @@
                 this.updateModel();
             },
             updateModel: function () {
-                if (this.arModelInner) {
-                    this.arModelInner.removeAttribute('gltf-model');
-                    setTimeout(() => {
-                        this.arModelInner.setAttribute('gltf-model', `models/Figure_${this.currentFigure}.glb`);
-                    }, 30);
+                if (!this.arModelInner) return;
+                this.arModelInner.removeAttribute('gltf-model');
+                setTimeout(() => {
+                    this.arModelInner.setAttribute('gltf-model', `models/Figure_${this.currentFigure}.glb`);
+                    // После загрузки новой модели дожидаемся события model-loaded, чтобы отмасштабировать её до нужного размера
+                    this.arModelInner.addEventListener('model-loaded', () => {
+                        this.scaleArModelToFit();
+                    }, { once: true });
+                }, 30);
+            },
+            scaleArModelToFit: function () {
+                // Получаем меш внутренней модели и вычисляем её размеры
+                const mesh = this.arModelInner.getObject3D('mesh');
+                if (!mesh) {
+                    setTimeout(() => this.scaleArModelToFit(), 50);
+                    return;
                 }
+                
+                // Сбрасываем масштаб внутренней модели (она будет масштабироваться один раз, а пользовательский масштаб будет на родителе)
+                this.arModelInner.object3D.scale.set(1, 1, 1);
+                this.arModelInner.object3D.position.set(0, 0, 0);
+                this.arModelInner.object3D.updateMatrixWorld(true);
+                
+                const box = new THREE.Box3().setFromObject(mesh);
+                const size = new THREE.Vector3();
+                box.getSize(size);
+                const maxDim = Math.max(size.x, size.y, size.z);
+                if (maxDim === 0) return;
+                
+                // Желаемый размер модели в AR: около 0.15 метра по наибольшей оси (удобно для размещения на столе)
+                const TARGET_AR_SIZE = 0.15;
+                const scaleFactor = TARGET_AR_SIZE / maxDim;
+                this.arModelInner.object3D.scale.set(scaleFactor, scaleFactor, scaleFactor);
+                this.arModelInner.object3D.updateMatrixWorld(true);
+                
+                // Центрирование модели
+                const scaledBox = new THREE.Box3().setFromObject(mesh);
+                const center = new THREE.Vector3();
+                scaledBox.getCenter(center);
+                this.arModelInner.object3D.position.set(-center.x, -center.y, -center.z);
+                this.arModelInner.object3D.updateMatrixWorld(true);
+                
+                // Сбрасываем масштаб родителя, чтобы не было двойного масштабирования
+                if (this.arModelParent) {
+                    this.arModelParent.object3D.scale.set(1, 1, 1);
+                }
+                
+                console.log('AR модель отмасштабирована, размер ~', TARGET_AR_SIZE);
             }
         });
 
-        // Компонент управления для обычного режима (вращение и зум)
+        // Компонент управления для обычного 3D-режима (вращение и зум)
         AFRAME.registerComponent('gallery-controls', {
             init: function () {
                 this.wrapper = document.getElementById('model-wrapper');
                 this.camera = document.getElementById('main-camera');
                 this.isDragging = false;
                 this.previousPos = { x: 0, y: 0 };
-                
                 this.zoom = 4.0;
                 this.minZoom = 1.6;
                 this.maxZoom = 9.0;
@@ -608,7 +616,6 @@
             onPointerDown: function (evt) {
                 if (evt.target.closest && (evt.target.closest('#prev-btn') || evt.target.closest('#next-btn') || evt.target.closest('#ar-mode-btn'))) return;
                 this.isDragging = true;
-                
                 if (evt.touches && evt.touches.length === 2) {
                     this.initialDistance = Math.hypot(
                         evt.touches[0].clientX - evt.touches[1].clientX,
@@ -621,12 +628,9 @@
                     this.previousPos = { x: clientX, y: clientY };
                 }
             },
-            onPointerUp: function () {
-                this.isDragging = false;
-            },
+            onPointerUp: function () { this.isDragging = false; },
             onPointerMove: function (evt) {
                 if (!this.isDragging) return;
-                
                 if (evt.touches && evt.touches.length === 2) {
                     evt.preventDefault();
                     let currentDistance = Math.hypot(
@@ -639,26 +643,21 @@
                     this.camera.setAttribute('position', `0 0 ${this.zoom}`);
                     return;
                 }
-                
                 evt.preventDefault();
                 let clientX = evt.touches ? evt.touches[0].clientX : evt.clientX;
                 let clientY = evt.touches ? evt.touches[0].clientY : evt.clientY;
                 let deltaX = clientX - this.previousPos.x;
                 let deltaY = clientY - this.previousPos.y;
-                
                 let rot = this.wrapper.getAttribute('rotation');
                 let rotYRad = rot.y * Math.PI / 180;
                 let adjustedDeltaY = deltaY * Math.cos(rotYRad);
-                
                 let newRotX = rot.x + adjustedDeltaY * 0.22;
                 newRotX = Math.max(-70, Math.min(70, newRotX));
-                
                 this.wrapper.setAttribute('rotation', {
                     x: newRotX,
                     y: rot.y + deltaX * 0.22,
                     z: rot.z
                 });
-                
                 this.previousPos = { x: clientX, y: clientY };
             },
             onWheel: function (evt) {
@@ -669,16 +668,14 @@
             }
         });
         
-        // ========== 4. АВТОМАТИЧЕСКОЕ МАСШТАБИРОВАНИЕ И ЦЕНТРИРОВАНИЕ МОДЕЛЕЙ ==========
+        // ========== 3. МАСШТАБИРОВАНИЕ ОСНОВНОЙ МОДЕЛИ (обычный режим) ==========
         const modelEntity = document.getElementById('main-model');
         const wrapperEntity = document.getElementById('model-wrapper');
-        const arModelInner = document.getElementById('ar-model-inner');
         const loadingEl = document.getElementById('loading');
         const descriptionEl = document.getElementById('description');
 
-        const TARGET_SIZE = 2.8;            // Размер для обычного 3D просмотра
-        const AR_TARGET_SIZE = 0.001;        // Размер в AR уменьшен в 10 раз (было 0.01)
-
+        const TARGET_SIZE = 2.8;
+        
         const descriptions = {
             1: "Тофаларские охотники",
             2: "Тофаларский мальчик с собакой",
@@ -709,34 +706,28 @@
                 setTimeout(processMainModel, 50);
                 return;
             }
-            
             modelEntity.object3D.scale.set(1, 1, 1);
             modelEntity.object3D.position.set(0, 0, 0);
             modelEntity.object3D.updateMatrixWorld(true);
-            
             const box = new THREE.Box3().setFromObject(mesh);
             const size = new THREE.Vector3();
             box.getSize(size);
             const maxDim = Math.max(size.x, size.y, size.z);
             if (maxDim === 0) return;
-            
             const scaleFactor = TARGET_SIZE / maxDim;
             modelEntity.object3D.scale.set(scaleFactor, scaleFactor, scaleFactor);
             modelEntity.object3D.updateMatrixWorld(true);
-            
             const scaledBox = new THREE.Box3().setFromObject(mesh);
             const center = new THREE.Vector3();
             scaledBox.getCenter(center);
             modelEntity.object3D.position.set(-center.x, -center.y, -center.z);
             modelEntity.object3D.updateMatrixWorld(true);
-            
             const finalBox = new THREE.Box3().setFromObject(mesh);
             const floorY = finalBox.min.y;
             const planeEl = document.querySelector('a-plane');
             if (planeEl) {
                 planeEl.setAttribute('position', `0 ${floorY - 0.05} 0`);
             }
-            
             mesh.traverse(node => {
                 if (node.isMesh) {
                     node.castShadow = true;
@@ -749,51 +740,10 @@
                     }
                 }
             });
-            
             loadingEl.style.display = 'none';
         }
         
-        function processArModel() {
-            const arMesh = arModelInner.getObject3D('mesh');
-            if (!arMesh) {
-                setTimeout(processArModel, 60);
-                return;
-            }
-            
-            arModelInner.object3D.scale.set(1, 1, 1);
-            arModelInner.object3D.position.set(0, 0, 0);
-            arModelInner.object3D.updateMatrixWorld(true);
-            
-            const box = new THREE.Box3().setFromObject(arMesh);
-            const size = new THREE.Vector3();
-            box.getSize(size);
-            const maxDim = Math.max(size.x, size.y, size.z);
-            if (maxDim === 0) return;
-            
-            const scaleFactor = AR_TARGET_SIZE / maxDim;
-            arModelInner.object3D.scale.set(scaleFactor, scaleFactor, scaleFactor);
-            arModelInner.object3D.updateMatrixWorld(true);
-            
-            const scaledBox = new THREE.Box3().setFromObject(arMesh);
-            const center = new THREE.Vector3();
-            scaledBox.getCenter(center);
-            arModelInner.object3D.position.set(-center.x, -center.y, -center.z);
-            arModelInner.object3D.updateMatrixWorld(true);
-            
-            arMesh.traverse(node => {
-                if (node.isMesh) {
-                    node.castShadow = true;
-                    node.receiveShadow = true;
-                    if (node.geometry) node.geometry.computeVertexNormals();
-                    if (node.material) {
-                        node.material.flatShading = false;
-                    }
-                }
-            });
-        }
-        
         modelEntity.addEventListener('model-loaded', processMainModel);
-        arModelInner.addEventListener('model-loaded', processArModel);
         
         const prevBtn = document.getElementById('prev-btn');
         const nextBtn = document.getElementById('next-btn');
@@ -801,7 +751,6 @@
         function loadFigure(num) {
             loadingEl.style.display = 'flex';
             descriptionEl.textContent = descriptions[num] || `Экспонат №${num}`;
-            
             if (wrapperEntity) {
                 wrapperEntity.setAttribute('rotation', '0 0 0');
             }
