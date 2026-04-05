@@ -326,7 +326,7 @@
         <a-plane rotation="-90 0 0" position="0 0 0" width="20" height="20" color="#111" opacity="0.3" shadow="receive: true" hide-on-enter-ar></a-plane>
 
         <!-- AR модель (размещается в пространстве AR) -->
-        <a-entity id="ar-model" visible="false" position="0 -0.5 -1.2">
+        <a-entity id="ar-model" visible="false" position="0 -0.3 -1.0">
             <a-entity id="ar-model-inner"
                       gltf-model="models/Figure_1.glb"
                       shadow="cast: true; receive: true">
@@ -377,7 +377,6 @@
             }
         }
 
-        // Вызов проверки при загрузке
         checkARSupport();
 
         // ========== 2. ВХОД В AR РЕЖИМ ПО КНОПКЕ ==========
@@ -385,14 +384,12 @@
             const sceneEl = document.querySelector('a-scene');
             if (!sceneEl) return;
             
-            // Проверка повторно на случай, если поддержка изменилась
             if (!isArSupportedFlag) {
                 alert('К сожалению, ваше устройство не поддерживает дополненную реальность (WebXR AR)');
                 return;
             }
             
             try {
-                // Запрашиваем AR-сессию
                 await sceneEl.enterVR({ mode: 'immersive-ar' });
                 console.log('AR сессия запущена');
             } catch (err) {
@@ -405,33 +402,36 @@
 
         // ========== 3. КОМПОНЕНТЫ ДЛЯ A-FRAME ==========
         
-        // Компонент для отслеживания AR режима и скрытия интерфейса
+        // Компонент для AR: перемещение (один палец), масштабирование и вращение (два пальца)
         AFRAME.registerComponent('ar-placement', {
             init: function () {
                 this.arModel = document.getElementById('ar-model');
                 this.arMode = false;
                 const sceneEl = this.el;
 
-                // Переменные для AR управления
+                // Переменные для управления
                 this.isDragging = false;
                 this.previousPos = { x: 0, y: 0 };
+                
+                // Для двух пальцев (масштаб и вращение)
                 this.initialDistance = 0;
                 this.initialScale = 1;
+                this.initialAngle = 0;
+                this.initialRotationY = 0;
 
                 sceneEl.addEventListener('enter-vr', (evt) => {
                     if (evt.detail && evt.detail.session && evt.detail.session.mode === 'immersive-ar') {
                         this.arMode = true;
                         document.body.classList.add('ar-mode');
-                        console.log('🔘 AR mode activated - отображение AR модели');
+                        console.log('AR mode activated');
 
-                        // Показываем AR модель и размещаем перед камерой
                         if (this.arModel) {
                             this.arModel.setAttribute('visible', 'true');
                             this.arModel.setAttribute('rotation', '0 0 0');
                             this.arModel.object3D.scale.set(1, 1, 1);
                             // Начальная позиция перед пользователем
                             this.arModel.setAttribute('position', '0 -0.3 -1.0');
-                            console.log('AR model position set to 0 -0.3 -1.0');
+                            console.log('AR model visible, position set');
                         }
                     }
                 });
@@ -439,45 +439,48 @@
                 sceneEl.addEventListener('exit-vr', () => {
                     this.arMode = false;
                     document.body.classList.remove('ar-mode');
-                    console.log('🔘 AR mode deactivated');
-
+                    console.log('AR mode deactivated');
                     if (this.arModel) {
                         this.arModel.setAttribute('visible', 'false');
                     }
                 });
 
-                // Управление в AR режиме
+                // Обработчики касаний на canvas
                 this.onPointerDown = this.onPointerDown.bind(this);
                 this.onPointerUp = this.onPointerUp.bind(this);
                 this.onPointerMove = this.onPointerMove.bind(this);
 
-                // Используем canvas для отслеживания касаний в AR
-                this.canvasEl = document.querySelector('canvas');
-                if (this.canvasEl) {
-                    this.canvasEl.addEventListener('touchstart', this.onPointerDown, { passive: false });
-                    this.canvasEl.addEventListener('touchend', this.onPointerUp);
-                    this.canvasEl.addEventListener('touchmove', this.onPointerMove, { passive: false });
+                const canvas = document.querySelector('canvas');
+                if (canvas) {
+                    canvas.addEventListener('touchstart', this.onPointerDown, { passive: false });
+                    canvas.addEventListener('touchend', this.onPointerUp);
+                    canvas.addEventListener('touchmove', this.onPointerMove, { passive: false });
                 }
             },
 
             onPointerDown: function (evt) {
                 if (!this.arMode) return;
-                console.log('AR onPointerDown', evt.touches ? evt.touches.length : 'mouse');
-
-                if (evt.touches && evt.touches.length === 2) {
-                    this.initialDistance = Math.hypot(
-                        evt.touches[0].clientX - evt.touches[1].clientX,
-                        evt.touches[0].clientY - evt.touches[1].clientY
-                    );
+                
+                if (evt.touches.length === 2) {
+                    // Два пальца: запоминаем расстояние и угол для масштабирования и вращения
+                    const dx = evt.touches[0].clientX - evt.touches[1].clientX;
+                    const dy = evt.touches[0].clientY - evt.touches[1].clientY;
+                    this.initialDistance = Math.hypot(dx, dy);
                     this.initialScale = this.arModel.object3D.scale.x;
-                    console.log('AR pinch start, scale:', this.initialScale);
-                } else if (evt.touches && evt.touches.length === 1) {
+                    
+                    this.initialAngle = Math.atan2(dy, dx);
+                    const rot = this.arModel.getAttribute('rotation');
+                    this.initialRotationY = rot.y;
+                    
+                    console.log('Two-finger start: dist=', this.initialDistance, 'angle=', this.initialAngle);
+                } else if (evt.touches.length === 1) {
+                    // Один палец: начинаем перемещение
                     this.isDragging = true;
                     this.previousPos = {
                         x: evt.touches[0].clientX,
                         y: evt.touches[0].clientY
                     };
-                    console.log('AR drag start', this.previousPos);
+                    console.log('One-finger drag start');
                 }
             },
 
@@ -488,38 +491,52 @@
             onPointerMove: function (evt) {
                 if (!this.arMode) return;
 
-                // Обработка щипка для масштабирования
-                if (evt.touches && evt.touches.length === 2) {
+                if (evt.touches.length === 2) {
                     evt.preventDefault();
-                    let currentDistance = Math.hypot(
-                        evt.touches[0].clientX - evt.touches[1].clientX,
-                        evt.touches[0].clientY - evt.touches[1].clientY
-                    );
+                    // Масштабирование и вращение двумя пальцами
+                    const dx = evt.touches[0].clientX - evt.touches[1].clientX;
+                    const dy = evt.touches[0].clientY - evt.touches[1].clientY;
+                    const currentDistance = Math.hypot(dx, dy);
+                    const currentAngle = Math.atan2(dy, dx);
+                    
+                    // Масштаб
                     let scale = this.initialScale * (currentDistance / this.initialDistance);
                     scale = Math.max(0.1, Math.min(5.0, scale));
                     this.arModel.object3D.scale.set(scale, scale, scale);
-                    console.log('AR scale:', scale);
-                    return;
+                    
+                    // Вращение вокруг вертикальной оси
+                    let deltaAngle = currentAngle - this.initialAngle;
+                    let newRotY = this.initialRotationY + deltaAngle * (180 / Math.PI);
+                    this.arModel.setAttribute('rotation', { x: 0, y: newRotY, z: 0 });
+                    
+                    console.log('Two-finger: scale=', scale, 'rotY=', newRotY);
+                } 
+                else if (this.isDragging && evt.touches.length === 1) {
+                    evt.preventDefault();
+                    // Перемещение модели по поверхности (X и Z)
+                    const clientX = evt.touches[0].clientX;
+                    const clientY = evt.touches[0].clientY;
+                    
+                    const deltaX = clientX - this.previousPos.x;
+                    const deltaY = clientY - this.previousPos.y;
+                    
+                    // Коэффициент чувствительности: перемещение по экрану -> движение в метрах
+                    // Чем ближе модель к камере, тем меньше должно быть смещение, но для простоты используем фиксированный множитель
+                    const speed = 0.008;
+                    let newPos = this.arModel.getAttribute('position');
+                    // Перемещение по X (влево-вправо) и по Z (вперёд-назад относительно взгляда)
+                    // Просто смещаем по мировым осям X и Z, что интуитивно понятно при стандартном положении камеры
+                    newPos.x -= deltaX * speed;
+                    newPos.z += deltaY * speed;   // движение пальцем вверх отдаляет модель, вниз приближает
+                    
+                    // Ограничиваем зону перемещения, чтобы модель не улетала слишком далеко
+                    newPos.x = Math.max(-2.5, Math.min(2.5, newPos.x));
+                    newPos.z = Math.max(-3.0, Math.min(1.0, newPos.z));
+                    
+                    this.arModel.setAttribute('position', newPos);
+                    this.previousPos = { x: clientX, y: clientY };
+                    console.log('Move: pos=', newPos);
                 }
-
-                // Вращение одним пальцем (только вокруг вертикальной оси Y)
-                if (!this.isDragging || !evt.touches || evt.touches.length !== 1) return;
-
-                evt.preventDefault();
-                let clientX = evt.touches[0].clientX;
-                let clientY = evt.touches[0].clientY;
-
-                let deltaX = clientX - this.previousPos.x;
-                let rot = this.arModel.getAttribute('rotation');
-
-                this.arModel.setAttribute('rotation', {
-                    x: 0,
-                    y: rot.y + deltaX * 0.3,
-                    z: 0
-                });
-
-                this.previousPos = { x: clientX, y: clientY };
-                console.log('AR rotation y:', rot.y + deltaX * 0.3);
             }
         });
 
@@ -528,10 +545,10 @@
             init: function () {
                 const sceneEl = this.el;
                 sceneEl.addEventListener('enter-vr', (evt) => {
-                    console.log('📱 Вход в VR/AR режим:', evt.detail.session.mode);
+                    console.log('Вход в VR/AR режим:', evt.detail.session.mode);
                 });
                 sceneEl.addEventListener('exit-vr', () => {
-                    console.log('👋 Выход из VR/AR режима');
+                    console.log('Выход из VR/AR режима');
                 });
             }
         });
@@ -551,18 +568,15 @@
             },
             updateModel: function () {
                 if (this.arModelInner) {
-                    // Сохраняем текущее масштабирование и позицию, но меняем модель
-                    const oldScale = this.arModelInner.object3D.scale.clone();
                     this.arModelInner.removeAttribute('gltf-model');
                     setTimeout(() => {
                         this.arModelInner.setAttribute('gltf-model', `models/Figure_${this.currentFigure}.glb`);
-                        // После загрузки пересчитаем масштаб и центрирование (обработчик model-loaded сам подстроит)
                     }, 30);
                 }
             }
         });
 
-        // Компонент управления: вращение и зум (кастомный, без стандартных look-controls)
+        // Компонент управления для обычного режима (вращение и зум)
         AFRAME.registerComponent('gallery-controls', {
             init: function () {
                 this.wrapper = document.getElementById('model-wrapper');
@@ -570,7 +584,6 @@
                 this.isDragging = false;
                 this.previousPos = { x: 0, y: 0 };
                 
-                // Настройки зума (дистанция камеры)
                 this.zoom = 4.0;
                 this.minZoom = 1.6;
                 this.maxZoom = 9.0;
@@ -590,7 +603,6 @@
                 document.addEventListener('touchmove', this.onPointerMove, { passive: false });
                 document.addEventListener('wheel', this.onWheel, { passive: false });
                 
-                // Установка начальной позиции камеры
                 this.camera.setAttribute('position', `0 0 ${this.zoom}`);
             },
             onPointerDown: function (evt) {
@@ -615,7 +627,6 @@
             onPointerMove: function (evt) {
                 if (!this.isDragging) return;
                 
-                // Масштабирование двумя пальцами (pinch)
                 if (evt.touches && evt.touches.length === 2) {
                     evt.preventDefault();
                     let currentDistance = Math.hypot(
@@ -629,7 +640,6 @@
                     return;
                 }
                 
-                // Вращение одним пальцем / мышью
                 evt.preventDefault();
                 let clientX = evt.touches ? evt.touches[0].clientX : evt.clientX;
                 let clientY = evt.touches ? evt.touches[0].clientY : evt.clientY;
@@ -641,7 +651,7 @@
                 let adjustedDeltaY = deltaY * Math.cos(rotYRad);
                 
                 let newRotX = rot.x + adjustedDeltaY * 0.22;
-                newRotX = Math.max(-70, Math.min(70, newRotX)); // ограничим наклон, чтобы модель не уходила вверх тормашками
+                newRotX = Math.max(-70, Math.min(70, newRotX));
                 
                 this.wrapper.setAttribute('rotation', {
                     x: newRotX,
@@ -666,10 +676,9 @@
         const loadingEl = document.getElementById('loading');
         const descriptionEl = document.getElementById('description');
 
-        const TARGET_SIZE = 2.8;       // Размер для основной модели (чтобы вписалась в кадр)
-        const AR_TARGET_SIZE = 0.01;    // Размер модели в AR (очень маленький для AR)
+        const TARGET_SIZE = 2.8;            // Размер для обычного 3D просмотра
+        const AR_TARGET_SIZE = 0.001;        // Размер в AR уменьшен в 10 раз (было 0.01)
 
-        // Описания экспонатов
         const descriptions = {
             1: "Тофаларские охотники",
             2: "Тофаларский мальчик с собакой",
@@ -694,7 +703,6 @@
         let currentFigure = 1;
         const totalFigures = 18;
         
-        // Функция центрирования и масштабирования основной модели
         function processMainModel() {
             const mesh = modelEntity.getObject3D('mesh');
             if (!mesh) {
@@ -702,7 +710,6 @@
                 return;
             }
             
-            // Сброс
             modelEntity.object3D.scale.set(1, 1, 1);
             modelEntity.object3D.position.set(0, 0, 0);
             modelEntity.object3D.updateMatrixWorld(true);
@@ -717,15 +724,12 @@
             modelEntity.object3D.scale.set(scaleFactor, scaleFactor, scaleFactor);
             modelEntity.object3D.updateMatrixWorld(true);
             
-            // Пересчитываем бокс после масштаба
             const scaledBox = new THREE.Box3().setFromObject(mesh);
             const center = new THREE.Vector3();
             scaledBox.getCenter(center);
-            // Центрируем модель относительно её геометрического центра
             modelEntity.object3D.position.set(-center.x, -center.y, -center.z);
             modelEntity.object3D.updateMatrixWorld(true);
             
-            // Опускаем пол под ноги модели (чтобы тень была внизу)
             const finalBox = new THREE.Box3().setFromObject(mesh);
             const floorY = finalBox.min.y;
             const planeEl = document.querySelector('a-plane');
@@ -733,7 +737,6 @@
                 planeEl.setAttribute('position', `0 ${floorY - 0.05} 0`);
             }
             
-            // Улучшаем тени и нормали
             mesh.traverse(node => {
                 if (node.isMesh) {
                     node.castShadow = true;
@@ -750,7 +753,6 @@
             loadingEl.style.display = 'none';
         }
         
-        // Функция для AR модели (масштабирование и центрирование)
         function processArModel() {
             const arMesh = arModelInner.getObject3D('mesh');
             if (!arMesh) {
@@ -793,7 +795,6 @@
         modelEntity.addEventListener('model-loaded', processMainModel);
         arModelInner.addEventListener('model-loaded', processArModel);
         
-        // Навигация по фигуркам
         const prevBtn = document.getElementById('prev-btn');
         const nextBtn = document.getElementById('next-btn');
         
@@ -801,17 +802,14 @@
             loadingEl.style.display = 'flex';
             descriptionEl.textContent = descriptions[num] || `Экспонат №${num}`;
             
-            // Сброс вращения wrapper при смене модели
             if (wrapperEntity) {
                 wrapperEntity.setAttribute('rotation', '0 0 0');
             }
-            // Сброс позиции и масштаба
             modelEntity.object3D.scale.set(1, 1, 1);
             modelEntity.object3D.position.set(0, 0, 0);
             modelEntity.removeAttribute('gltf-model');
             setTimeout(() => {
                 modelEntity.setAttribute('gltf-model', `models/Figure_${num}.glb`);
-                // Синхронизируем AR модель
                 const sceneEl = document.querySelector('a-scene');
                 sceneEl.dispatchEvent(new CustomEvent('figure-changed', { detail: { figure: num } }));
             }, 20);
@@ -827,13 +825,9 @@
             loadFigure(currentFigure);
         };
         
-        // Старт с первой фигурки
         loadFigure(currentFigure);
         
-        // Отключаем контекстное меню и выделение для лучшего UX
         document.body.addEventListener('contextmenu', (e) => e.preventDefault());
-        
-        // Обработчик для выхода из AR по кнопке "назад" (на случай необходимости)
         window.addEventListener('beforexrselect', (e) => e.preventDefault());
     </script>
 </body>
