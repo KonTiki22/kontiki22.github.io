@@ -29,14 +29,12 @@
         </div>
     </div>
 
+    <!-- ТЕПЕРЬ ТЕГ ЧИСТЫЙ И БЕЗ ОШИБОК -->
     <a-scene
         renderer="colorManagement: true; antialias: true; physicallyCorrectLights: true; logarithmicDepthBuffer: true;"
         shadow="type: pcfsoft"
-        webxr="requiredFeatures: hit-test; optionalFeatures: dom-overlay; overlayElement: #overlay;"
-        
-        <!-- ВЕРНО ПО ДОКУМЕНТАЦИИ: указываем A-Frame, какую модель телепортировать при тапе -->
+        webxr="requiredFeatures: hit-test; optionalFeatures: dom-overlay; overlayElement: #overlay; referenceSpaceType: local;"
         ar-hit-test="target: #ar-model;"
-        
         ar-placement
         log-webxr
         ar-model-sync
@@ -51,22 +49,18 @@
         </a-entity>
         <a-entity light="type: hemisphere; intensity: 0.5; color: #ffffff; groundColor: #443322;"></a-entity>
 
-        <!-- Центральная ось для вращения модели в обычном режиме -->
         <a-entity id="model-wrapper" position="0 0 0" hide-on-enter-ar>
             <a-entity id="main-model" gltf-model="models/Figure_1.glb" shadow="cast: true; receive: true"></a-entity>
         </a-entity>
         
         <a-plane rotation="-90 0 0" position="0 0 0" width="20" height="20" color="#111" opacity="0.3" shadow="receive: true" hide-on-enter-ar></a-plane>
 
-        <!-- ВАЖНО: Ручной ретикуль удален. A-Frame 1.7.0 сам генерирует кружок с отпечатками ног -->
-
-        <!-- AR модель: Изначально скрыта. Компонент ar-hit-test сам сделает её видимой по тапу -->
         <a-entity id="ar-model" visible="false">
             <a-entity id="ar-model-inner" gltf-model="models/Figure_1.glb" shadow="cast: true; receive: true"></a-entity>
         </a-entity>
 
-        <!-- Статичная камера для обычного режима -->
         <a-entity id="main-camera" camera look-controls="enabled: false" wasd-controls="enabled: false" position="0 0 0.25"></a-entity>
+
     </a-scene>
 
     <script>
@@ -108,12 +102,11 @@
         }
         arButton.addEventListener('click', enterAR);
         
-        // --- Логика AR управления ---
         AFRAME.registerComponent('ar-placement', {
             init: function () {
                 const sceneEl = this.el.sceneEl;
                 const arModel = document.getElementById('ar-model');
-
+                
                 this.placed = false;
                 this.arMode = false;
 
@@ -128,33 +121,24 @@
                 this.onPointerUp = this.onPointerUp.bind(this);
                 this.onPointerMove = this.onPointerMove.bind(this);
 
-                // Подписываемся на вход в AR
+                sceneEl.addEventListener('ar-hit-test-select', () => {
+                    if (!this.placed) {
+                        this.placed = true;
+                        console.log("Модель установлена родным компонентом A-Frame!");
+                        if (window.navigator.vibrate) window.navigator.vibrate(50);
+                        
+                        setTimeout(() => {
+                            sceneEl.removeAttribute('ar-hit-test');
+                        }, 100);
+                    }
+                });
+
                 sceneEl.addEventListener('enter-vr', () => {
                     if (sceneEl.is('ar-mode')) {
                         this.arMode = true;
                         this.placed = false;
                         document.body.classList.add('ar-mode');
-                        
-                        // Возвращаем родной поиск пола A-Frame
                         sceneEl.setAttribute('ar-hit-test', 'target: #ar-model;');
-                        
-                        // Ловим реальный системный тап через сессию
-                        const session = sceneEl.renderer.xr.getSession();
-                        if (session) {
-                            session.addEventListener('select', () => {
-                                if (!this.placed) {
-                                    this.placed = true;
-                                    console.log("Модель установлена родным компонентом A-Frame!");
-                                    if (window.navigator.vibrate) window.navigator.vibrate(50);
-                                    
-                                    // Удаляем системный прицел через 100мс, чтобы дальше вы могли вращать модель жестами
-                                    // и она больше не прыгала по новым тапам
-                                    setTimeout(() => {
-                                        sceneEl.removeAttribute('ar-hit-test');
-                                    }, 100);
-                                }
-                            });
-                        }
                     }
                 });
 
@@ -280,7 +264,6 @@
             }
         });
 
-        // 3D галерея скрипты (Остались без изменений)
         AFRAME.registerComponent('gallery-controls', {
             init: function () {
                 this.wrapper = document.getElementById('model-wrapper');
@@ -365,6 +348,7 @@
         function processMainModel() {
             const mesh = modelEntity.getObject3D('mesh');
             if (!mesh) return setTimeout(processMainModel, 50);
+            
             modelEntity.object3D.scale.set(1, 1, 1);
             modelEntity.object3D.position.set(0, 0, 0);
             modelEntity.object3D.updateMatrixWorld(true);
@@ -378,6 +362,7 @@
             const center = new THREE.Vector3(); scaledBox.getCenter(center);
             modelEntity.object3D.position.set(-center.x, -center.y, -center.z);
             modelEntity.object3D.updateMatrixWorld(true);
+            
             const planeEl = document.querySelector('a-plane');
             if (planeEl) planeEl.setAttribute('position', `0 ${new THREE.Box3().setFromObject(mesh).min.y - 0.05} 0`);
             
