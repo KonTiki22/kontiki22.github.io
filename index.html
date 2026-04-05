@@ -590,8 +590,8 @@
                 this.isDragging = false;
                 this.previousPos = { x: 0, y: 0 };
                 this.zoom = 0.25;
-                this.minZoom = 0.15;
-                this.maxZoom = 0.5;
+                this.minZoom = 0.20;
+                this.maxZoom = 0.35;
                 this.initialDistance = 0;
                 this.initialZoom = 0.25;
 
@@ -662,7 +662,7 @@
             onWheel: function (evt) {
                 if (document.body.classList.contains('ar-mode')) return;
                 evt.preventDefault();
-                this.zoom += evt.deltaY * 0.005;
+                this.zoom += evt.deltaY * 0.001;
                 this.zoom = Math.max(this.minZoom, Math.min(this.zoom, this.maxZoom));
                 this.camera.setAttribute('position', `0 0 ${this.zoom}`);
             }
