@@ -34,6 +34,7 @@
         renderer="colorManagement: true; antialias: true; physicallyCorrectLights: true; logarithmicDepthBuffer: true;"
         shadow="type: pcfsoft"
         webxr="requiredFeatures: hit-test; optionalFeatures: dom-overlay; overlayElement: #overlay; referenceSpaceType: local;"
+        ar-hit-test="targetEl: #reticle; doRaycaster: true"
         ar-placement
         log-webxr
         ar-model-sync
@@ -63,7 +64,6 @@
 
         <!-- Ретикуль (прицел) — виден только в AR, пока модель не поставлена -->
         <a-entity id="reticle"
-                  ar-hit-test
                   visible="false">
             <a-ring rotation="-90 0 0" radius-inner="0.02" radius-outer="0.03" color="#4CC3D9"></a-ring>
         </a-entity>
@@ -154,7 +154,7 @@
                         arModel.setAttribute('quaternion', hitRotation);
                         arModel.setAttribute('visible', 'true');
                         this.placed = true;
-                        reticle.setAttribute('ar-hit-test', 'enabled', false);
+                        sceneEl.setAttribute('ar-hit-test', 'enabled', false);
                         reticle.setAttribute('visible', false);
                         console.log("Модель успешно размещена через ar-hit-test");
                         if (window.navigator.vibrate) window.navigator.vibrate(50);
@@ -167,7 +167,7 @@
                         this.placed = false;
                         document.body.classList.add('ar-mode');
                         reticle.setAttribute('visible', true);
-                        reticle.setAttribute('ar-hit-test', 'enabled', true);
+                        sceneEl.setAttribute('ar-hit-test', 'enabled', true);
                     }
                 });
 
@@ -177,6 +177,7 @@
                     document.body.classList.remove('ar-mode');
                     arModel.setAttribute('visible', false);
                     reticle.setAttribute('visible', false);
+                    sceneEl.setAttribute('ar-hit-test', 'enabled', false);
                 });
 
                 window.addEventListener('touchstart', this.onPointerDown, { passive: false });
