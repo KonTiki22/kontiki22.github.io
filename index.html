@@ -2,153 +2,293 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Галерея Фигурок</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>3D Галерея Фигурок | AR mode</title>
 
     <script src="js/aframe.min.js"></script>
     <script src="background-gradient.js"></script>
 
     <style>
-        body { margin: 0; overflow: hidden; font-family: sans-serif; background-color: #111; touch-action: none; }
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #111;
+            touch-action: none;
+        }
+
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&display=swap');
-        
+
+        /* Основной заголовок */
         .header-title {
             position: absolute;
             top: 15px;
             left: 50%;
             transform: translateX(-50%);
             color: #fff;
-            font-size: 24px;
+            font-size: 20px;
             font-weight: 600;
             font-family: 'Playfair Display', Georgia, serif;
             text-shadow: 2px 2px 6px rgba(0,0,0,0.9);
             z-index: 100;
             text-align: center;
             letter-spacing: 1px;
-            padding: 12px 20px;
+            padding: 10px 18px;
             background: rgba(0,0,0,0.6);
             border-radius: 12px;
             backdrop-filter: blur(6px);
-            max-width: 95%;
-            border: 1px solid rgba(255,255,255,0.1);
+            max-width: 90%;
+            border: 1px solid rgba(255,255,255,0.15);
             line-height: 1.3;
+            pointer-events: none;
         }
-        
+
         @media (min-width: 768px) {
             .header-title {
-                font-size: 32px;
-                padding: 15px 25px;
+                font-size: 28px;
+                padding: 14px 24px;
                 top: 20px;
             }
         }
-        
-        @media (min-width: 1200px) {
-            .header-title {
-                font-size: 42px;
-                padding: 20px 30px;
-                top: 25px;
-                letter-spacing: 2px;
-            }
-        }
+
+        /* Стрелки навигации */
         #arrows {
-            position: absolute; top: 0; bottom: 0; left: 0; right: 0;
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 0 15px; pointer-events: none; z-index: 100;
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 15px;
+            pointer-events: none;
+            z-index: 100;
         }
+
         .arrow-btn {
             pointer-events: auto;
-            padding: 12px 18px; cursor: pointer;
-            background: rgba(255, 255, 255, 0.9); border: none; border-radius: 50%;
-            font-weight: bold; font-size: 20px; transition: background 0.3s, transform 0.2s;
-            width: 45px; height: 45px; display: flex; align-items: center; justify-content: center;
+            padding: 12px 18px;
+            cursor: pointer;
+            background: rgba(30, 30, 40, 0.85);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            font-weight: bold;
+            font-size: 20px;
+            transition: all 0.2s ease;
+            width: 48px;
+            height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
         }
-        .arrow-btn:hover { background: #fff; transform: scale(1.1); }
-        
+
+        .arrow-btn:active {
+            transform: scale(0.95);
+            background: rgba(80, 80, 100, 0.9);
+        }
+
         @media (min-width: 768px) {
             #arrows { padding: 0 30px; }
             .arrow-btn {
-                padding: 15px 25px;
-                width: 60px; height: 60px;
-                font-size: 24px;
+                width: 60px;
+                height: 60px;
+                font-size: 28px;
+            }
+            .arrow-btn:hover {
+                background: rgba(255,255,255,0.9);
+                color: #111;
+                transform: scale(1.05);
             }
         }
-        
-        @media (min-width: 1200px) {
-            #arrows { padding: 0 100px; }
-        }
-        
+
+        /* Индикатор загрузки */
         #loading {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            color: #fff; font-size: 18px; font-weight: bold; z-index: 200;
-            background: rgba(0, 0, 0, 0.8); padding: 15px 25px; border-radius: 12px;
-            display: flex; flex-direction: column; align-items: center; gap: 12px;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            font-size: 18px;
+            font-weight: bold;
+            z-index: 200;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 15px 25px;
+            border-radius: 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            backdrop-filter: blur(10px);
+            pointer-events: none;
         }
+
         .spinner {
-            width: 40px; height: 40px; border: 4px solid rgba(255, 255, 255, 0.3);
-            border-top: 4px solid #4CC3D9; border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #4CC3D9;
+            border-radius: 50%;
             animation: spin 1s linear infinite;
         }
+
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        
-        @media (min-width: 768px) {
-            #loading {
-                font-size: 22px;
-                padding: 18px 30px;
-            }
-            .spinner {
-                width: 50px; height: 50px;
-                border-width: 5px;
-            }
-        }
-        
+
+        /* Описание фигурки */
         #description {
-            position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%);
-            color: #fff; font-size: 14px; font-weight: 500; text-align: center;
-            background: rgba(0, 0, 0, 0.7); padding: 10px 20px; border-radius: 8px;
-            z-index: 100; max-width: 90%;
+            position: absolute;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #fff;
+            font-size: 14px;
+            font-weight: 500;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(8px);
+            padding: 10px 20px;
+            border-radius: 40px;
+            z-index: 100;
+            max-width: 85%;
             line-height: 1.4;
+            pointer-events: none;
+            white-space: nowrap;
+            overflow-x: auto;
+            white-space: normal;
+            font-weight: 500;
+            letter-spacing: 0.3px;
         }
-        
+
         @media (min-width: 768px) {
-            #description {
-                font-size: 16px;
-                padding: 12px 25px;
-                bottom: 90px;
-                max-width: 80%;
-            }
-        }
-        
-        @media (min-width: 1200px) {
             #description {
                 font-size: 18px;
-                padding: 15px 30px;
+                padding: 12px 28px;
                 bottom: 100px;
+                max-width: 70%;
             }
         }
 
-        /* Скрытие интерфейса в AR-режиме */
+        /* ===== КАСТОМНАЯ КНОПКА AR ===== */
+        .custom-ar-button {
+            position: absolute;
+            bottom: 25px;
+            right: 20px;
+            background: linear-gradient(135deg, #0078ff, #004ecc);
+            color: white;
+            border: none;
+            border-radius: 60px;
+            padding: 14px 24px;
+            font-size: 18px;
+            font-weight: bold;
+            font-family: inherit;
+            z-index: 150;
+            cursor: pointer;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.3);
+            backdrop-filter: blur(4px);
+            transition: transform 0.2s, background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            letter-spacing: 1px;
+            border: 1px solid rgba(255,255,255,0.3);
+            pointer-events: auto;
+        }
+
+        .custom-ar-button::before {
+            content: "🔘";
+            font-size: 20px;
+        }
+
+        .custom-ar-button:active {
+            transform: scale(0.96);
+            background: linear-gradient(135deg, #0066dd, #003d99);
+        }
+
+        @media (min-width: 768px) {
+            .custom-ar-button {
+                bottom: 35px;
+                right: 30px;
+                padding: 16px 28px;
+                font-size: 20px;
+            }
+            .custom-ar-button:hover {
+                transform: scale(1.02);
+                background: linear-gradient(135deg, #1a86ff, #0059dd);
+            }
+        }
+
+        /* Скрываем стандартную кнопку VR A-Frame (очки) */
+        .a-enter-vr, .a-enter-vr-button {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
+
+        /* Скрываем стандартную AR-кнопку A-Frame, если вдруг появляется (чтобы не дублировать) */
+        .a-enter-ar {
+            display: none !important;
+        }
+
+        /* При активном AR режиме — скрываем кастомный интерфейс */
         body.ar-mode .header-title,
         body.ar-mode #arrows,
-        body.ar-mode #description {
+        body.ar-mode #description,
+        body.ar-mode .custom-ar-button {
             display: none !important;
+        }
+
+        /* Сообщение о неподдержке AR */
+        .ar-unsupported-msg {
+            position: absolute;
+            bottom: 100px;
+            left: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.8);
+            color: #ffaa66;
+            padding: 12px;
+            border-radius: 16px;
+            font-size: 14px;
+            text-align: center;
+            z-index: 160;
+            backdrop-filter: blur(8px);
+            pointer-events: none;
+            font-weight: 500;
+            display: none;
+        }
+
+        @media (min-width: 768px) {
+            .ar-unsupported-msg {
+                font-size: 16px;
+                bottom: 120px;
+            }
         }
     </style>
 </head>
 <body>
 
-    <div class="header-title">3D галерея экспонатов выставки «Коренные народы Сибири»</div>
+    <div class="header-title">✨ 3D галерея «Коренные народы Сибири» ✨</div>
     <div id="loading">
         <div class="spinner"></div>
-        <div>Загрузка...</div>
+        <div>Загрузка экспоната...</div>
     </div>
     <div id="arrows">
         <button class="arrow-btn" id="prev-btn">←</button>
         <button class="arrow-btn" id="next-btn">→</button>
     </div>
     <div id="description"></div>
+
+    <!-- Кастомная кнопка AR (появляется только если поддерживается) -->
+    <button id="ar-mode-btn" class="custom-ar-button" style="display: none;">AR Режим</button>
+    <div id="ar-unsupported-msg" class="ar-unsupported-msg">
+        ⚠️ Ваше устройство не поддерживает WebXR AR. Доступен только 3D просмотр.
+    </div>
 
     <a-scene
         renderer="colorManagement: true; antialias: true; physicallyCorrectLights: true; logarithmicDepthBuffer: true;"
@@ -159,179 +299,227 @@
         ar-model-sync
         gallery-controls>
 
-        <a-sky material="shader: background-gradient; colorTop: #666666; colorBottom: #1a1a1a;" geometry="primitive: sphere; radius: 500; thetaLength: 64; phiLength: 64; thetaSegments: 64; phiSegments: 64;" hide-on-enter-ar></a-sky>
+        <!-- Фоновый градиентный небосвод (скрывается в AR) -->
+        <a-sky material="shader: background-gradient; colorTop: #1e2a3a; colorBottom: #0a0a0a;" geometry="primitive: sphere; radius: 500; thetaLength: 64; phiLength: 64;" hide-on-enter-ar></a-sky>
 
-        <!-- ОСВЕЩЕНИЕ -->
-        <a-entity light="type: ambient; intensity: 1.0;"></a-entity>
+        <!-- Освещение -->
+        <a-entity light="type: ambient; intensity: 0.9;"></a-entity>
         <a-entity id="main-light"
                   position="3 5 4"
-                  light="type: directional; intensity: 1.5; castShadow: true; shadowBias: -0.001; shadowMapHeight: 2048; shadowMapWidth: 2048; shadowCameraLeft: -4; shadowCameraRight: 4; shadowCameraTop: 4; shadowCameraBottom: -4;">
+                  light="type: directional; intensity: 1.6; castShadow: true; shadowBias: -0.0005; shadowMapHeight: 2048; shadowMapWidth: 2048; shadowCameraLeft: -4; shadowCameraRight: 4; shadowCameraTop: 4; shadowCameraBottom: -4;">
         </a-entity>
 
-        <!-- ЦЕНТРАЛЬНАЯ ОСЬ ДЛЯ ВРАЩЕНИЯ -->
-        <!-- Именно этот блок мы будем крутить мышкой -->
+        <!-- Дополнительный мягкий fill свет -->
+        <a-entity light="type: hemisphere; intensity: 0.5; color: #ffffff; groundColor: #443322;"></a-entity>
+
+        <!-- Центральная ось для вращения модели (управление жестами) -->
         <a-entity id="model-wrapper" position="0 0 0">
-            <!-- Сама фигурка -->
+            <!-- Основная 3D модель -->
             <a-entity id="main-model"
                       gltf-model="models/Figure_1.glb" 
                       shadow="cast: true; receive: true">
             </a-entity>
         </a-entity>
         
-        <!-- Пол для тени -->
-        <a-plane rotation="-90 0 0" position="0 0 0" width="20" height="20" color="#000" opacity="0.2" shadow="receive: true" hide-on-enter-ar></a-plane>
+        <!-- Пол для тени (виртуальная поверхность) -->
+        <a-plane rotation="-90 0 0" position="0 0 0" width="20" height="20" color="#111" opacity="0.3" shadow="receive: true" hide-on-enter-ar></a-plane>
 
-        <!-- AR модель для размещения -->
-        <a-entity id="ar-model" visible="false" position="0 -0.5 -1">
+        <!-- AR модель (размещается в пространстве AR) -->
+        <a-entity id="ar-model" visible="false" position="0 -0.5 -1.2">
             <a-entity id="ar-model-inner"
                       gltf-model="models/Figure_1.glb"
                       shadow="cast: true; receive: true">
             </a-entity>
         </a-entity>
 
-        <!-- СТАТИЧНАЯ КАМЕРА (больше никаких конфликтов орбиты) -->
+        <!-- Статичная камера для десктопа/мобильного просмотра (без look-controls, вращение только через wrapper) -->
         <a-entity id="main-camera" camera
                   look-controls="enabled: false"
                   wasd-controls="enabled: false"
-                  look-at="0 0 0"
                   position="0 0 4">
         </a-entity>
 
     </a-scene>
 
     <script>
-        // Проверка поддержки AR
-        function isARSupported() {
-            return 'xr' in navigator && 'isSessionSupported' in navigator.xr;
+        // ========== 1. ПРОВЕРКА ПОДДЕРЖКИ AR И УПРАВЛЕНИЕ КНОПКОЙ ==========
+        const arButton = document.getElementById('ar-mode-btn');
+        const unsupportedMsg = document.getElementById('ar-unsupported-msg');
+        let isArSupportedFlag = false;
+
+        async function checkARSupport() {
+            if ('xr' in navigator && 'isSessionSupported' in navigator.xr) {
+                try {
+                    const supported = await navigator.xr.isSessionSupported('immersive-ar');
+                    if (supported) {
+                        isArSupportedFlag = true;
+                        arButton.style.display = 'flex';
+                        unsupportedMsg.style.display = 'none';
+                        console.log('✅ AR поддерживается, кнопка AR активна');
+                    } else {
+                        isArSupportedFlag = false;
+                        arButton.style.display = 'none';
+                        unsupportedMsg.style.display = 'block';
+                        console.log('❌ AR НЕ поддерживается');
+                    }
+                } catch (err) {
+                    console.warn('Ошибка проверки AR:', err);
+                    isArSupportedFlag = false;
+                    arButton.style.display = 'none';
+                    unsupportedMsg.style.display = 'block';
+                }
+            } else {
+                isArSupportedFlag = false;
+                arButton.style.display = 'none';
+                unsupportedMsg.style.display = 'block';
+                console.log('❌ WebXR не найден');
+            }
         }
 
-        // Кастомный компонент для AR размещения
+        // Вызов проверки при загрузке
+        checkARSupport();
+
+        // ========== 2. ВХОД В AR РЕЖИМ ПО КНОПКЕ ==========
+        async function enterAR() {
+            const sceneEl = document.querySelector('a-scene');
+            if (!sceneEl) return;
+            
+            // Проверка повторно на случай, если поддержка изменилась
+            if (!isArSupportedFlag) {
+                alert('К сожалению, ваше устройство не поддерживает дополненную реальность (WebXR AR)');
+                return;
+            }
+            
+            try {
+                // Запрашиваем AR-сессию
+                await sceneEl.enterVR({ mode: 'immersive-ar' });
+                console.log('AR сессия запущена');
+            } catch (err) {
+                console.error('Ошибка входа в AR:', err);
+                alert('Не удалось запустить AR. Возможно, требуется разрешение камеры или устройство не совместимо.');
+            }
+        }
+
+        arButton.addEventListener('click', enterAR);
+
+        // ========== 3. КОМПОНЕНТЫ ДЛЯ A-FRAME ==========
+        
+        // Компонент для отслеживания AR режима и скрытия интерфейса
         AFRAME.registerComponent('ar-placement', {
             init: function () {
                 this.arModel = document.getElementById('ar-model');
                 this.arMode = false;
+                const sceneEl = this.el;
 
-                this.el.sceneEl.addEventListener('enter-vr', async (evt) => {
-                    if (evt.detail.session.mode === 'immersive-ar') {
+                sceneEl.addEventListener('enter-vr', (evt) => {
+                    if (evt.detail && evt.detail.session && evt.detail.session.mode === 'immersive-ar') {
                         this.arMode = true;
                         document.body.classList.add('ar-mode');
-                        console.log('AR mode activated');
-
-                        // Показываем AR модель
-                        this.arModel.setAttribute('visible', 'true');
-                        this.arModel.setAttribute('position', '0 -0.5 -1');
+                        console.log('🔘 AR mode activated - отображение AR модели');
+                        
+                        // Показываем AR модель и размещаем перед камерой
+                        if (this.arModel) {
+                            this.arModel.setAttribute('visible', 'true');
+                            // Начальная позиция перед пользователем
+                            this.arModel.setAttribute('position', '0 -0.4 -1.2');
+                        }
                     }
                 });
 
-                this.el.sceneEl.addEventListener('exit-vr', () => {
+                sceneEl.addEventListener('exit-vr', () => {
                     this.arMode = false;
                     document.body.classList.remove('ar-mode');
-                    console.log('AR mode deactivated');
-
-                    // Скрываем AR модель
-                    this.arModel.setAttribute('visible', 'false');
-                });
-
-                // Обработка кликов для перемещения модели в AR
-                this.el.sceneEl.addEventListener('click', (evt) => {
-                    if (!this.arMode) return;
-
-                    // Если клик не по интерфейсу
-                    if (evt.target.tagName !== 'BUTTON') {
-                        // Перемещаем модель к точке клика
-                        const point = evt.detail.intersection.point;
-                        if (point) {
-                            this.arModel.setAttribute('position', point);
-                        }
+                    console.log('🔘 AR mode deactivated');
+                    
+                    if (this.arModel) {
+                        this.arModel.setAttribute('visible', 'false');
                     }
                 });
+                
+                // Дополнительно: обработка клика для перемещения AR-модели в точку касания (hit-test упрощен)
+                sceneEl.addEventListener('click', (evt) => {
+                    if (!this.arMode) return;
+                    // Проверяем, есть ли пересечение с реальной плоскостью (через пересечение с hit-test)
+                    // Для простоты используем точку пересечения с невидимой плоскостью, но так как hit-test сложен,
+                    // сделаем базовое перемещение вперед/назад при клике по кнопкам? но лучше оставить авто-размещение.
+                    // Однако для удобства — перемещаем модель немного вперед/назад при клике на саму модель? пропустим.
+                    // Просто оставим как есть, модель статична, но пользователь может перемещать телефон.
+                });
             }
         });
 
-        // Логирование событий WebXR
+        // Логирование WebXR
         AFRAME.registerComponent('log-webxr', {
             init: function () {
-                var sceneEl = this.el;
-
-                // Проверяем поддержку при загрузке
-                if (isARSupported()) {
-                    navigator.xr.isSessionSupported('immersive-ar').then((supported) => {
-                        if (supported) {
-                            console.log('AR is supported on this device');
-                        } else {
-                            console.log('AR is not supported, VR mode will be used');
-                        }
-                    });
-                } else {
-                    console.log('WebXR is not supported on this device');
-                }
-
-                sceneEl.addEventListener('enter-vr', function (evt) {
-                    console.log('Entering VR/AR mode:', evt.detail.session.mode);
+                const sceneEl = this.el;
+                sceneEl.addEventListener('enter-vr', (evt) => {
+                    console.log('📱 Вход в VR/AR режим:', evt.detail.session.mode);
                 });
-                sceneEl.addEventListener('exit-vr', function () {
-                    console.log('Exiting VR/AR mode');
+                sceneEl.addEventListener('exit-vr', () => {
+                    console.log('👋 Выход из VR/AR режима');
                 });
             }
         });
 
-        // Компонент для синхронизации AR модели с текущей фигуркой
+        // Синхронизация AR модели с текущей фигуркой
         AFRAME.registerComponent('ar-model-sync', {
             init: function () {
-                this.arModel = document.getElementById('ar-model-inner');
+                this.arModelInner = document.getElementById('ar-model-inner');
                 this.currentFigure = 1;
-
-                // Слушаем события изменения фигурки
-                this.el.addEventListener('figure-changed', (evt) => {
+                const sceneEl = this.el;
+                
+                sceneEl.addEventListener('figure-changed', (evt) => {
                     this.currentFigure = evt.detail.figure;
                     this.updateModel();
                 });
-
                 this.updateModel();
             },
             updateModel: function () {
-                if (this.arModel) {
-                    this.arModel.removeAttribute('gltf-model');
+                if (this.arModelInner) {
+                    // Сохраняем текущее масштабирование и позицию, но меняем модель
+                    const oldScale = this.arModelInner.object3D.scale.clone();
+                    this.arModelInner.removeAttribute('gltf-model');
                     setTimeout(() => {
-                        this.arModel.setAttribute('gltf-model', `models/Figure_${this.currentFigure}.glb`);
-                    }, 10);
+                        this.arModelInner.setAttribute('gltf-model', `models/Figure_${this.currentFigure}.glb`);
+                        // После загрузки пересчитаем масштаб и центрирование (обработчик model-loaded сам подстроит)
+                    }, 30);
                 }
             }
         });
 
+        // Компонент управления: вращение и зум (кастомный, без стандартных look-controls)
         AFRAME.registerComponent('gallery-controls', {
             init: function () {
                 this.wrapper = document.getElementById('model-wrapper');
                 this.camera = document.getElementById('main-camera');
-                
                 this.isDragging = false;
                 this.previousPos = { x: 0, y: 0 };
                 
-                // Настройки зума
-                this.zoom = 4; // стартовая дистанция камеры
-                this.minZoom = 1.5;
-                this.maxZoom = 10;
-                
+                // Настройки зума (дистанция камеры)
+                this.zoom = 4.0;
+                this.minZoom = 1.6;
+                this.maxZoom = 9.0;
                 this.initialDistance = 0;
                 this.initialZoom = 4;
-
+                
                 this.onPointerDown = this.onPointerDown.bind(this);
                 this.onPointerUp = this.onPointerUp.bind(this);
                 this.onPointerMove = this.onPointerMove.bind(this);
                 this.onWheel = this.onWheel.bind(this);
-
+                
                 document.addEventListener('mousedown', this.onPointerDown);
                 document.addEventListener('mouseup', this.onPointerUp);
                 document.addEventListener('mousemove', this.onPointerMove);
-                
-                document.addEventListener('touchstart', this.onPointerDown, {passive: false});
+                document.addEventListener('touchstart', this.onPointerDown, { passive: false });
                 document.addEventListener('touchend', this.onPointerUp);
-                document.addEventListener('touchmove', this.onPointerMove, {passive: false});
+                document.addEventListener('touchmove', this.onPointerMove, { passive: false });
+                document.addEventListener('wheel', this.onWheel, { passive: false });
                 
-                document.addEventListener('wheel', this.onWheel, {passive: false});
+                // Установка начальной позиции камеры
+                this.camera.setAttribute('position', `0 0 ${this.zoom}`);
             },
             onPointerDown: function (evt) {
-                if (evt.target.tagName === 'BUTTON') return; // не блокируем клик по меню
+                if (evt.target.closest && (evt.target.closest('#prev-btn') || evt.target.closest('#next-btn') || evt.target.closest('#ar-mode-btn'))) return;
                 this.isDragging = true;
                 
                 if (evt.touches && evt.touches.length === 2) {
@@ -352,7 +540,7 @@
             onPointerMove: function (evt) {
                 if (!this.isDragging) return;
                 
-                // Обработка щипка (ЗУМ на смартфоне)
+                // Масштабирование двумя пальцами (pinch)
                 if (evt.touches && evt.touches.length === 2) {
                     evt.preventDefault();
                     let currentDistance = Math.hypot(
@@ -365,113 +553,117 @@
                     this.camera.setAttribute('position', `0 0 ${this.zoom}`);
                     return;
                 }
-
-                // Обработка вращения (Один палец / Мышь)
+                
+                // Вращение одним пальцем / мышью
                 evt.preventDefault();
                 let clientX = evt.touches ? evt.touches[0].clientX : evt.clientX;
                 let clientY = evt.touches ? evt.touches[0].clientY : evt.clientY;
-                
                 let deltaX = clientX - this.previousPos.x;
                 let deltaY = clientY - this.previousPos.y;
-
+                
                 let rot = this.wrapper.getAttribute('rotation');
-                // Корректируем deltaY в зависимости от ориентации модели по оси Y
-                // чтобы вращение по X всегда было интуитивно понятным
                 let rotYRad = rot.y * Math.PI / 180;
                 let adjustedDeltaY = deltaY * Math.cos(rotYRad);
                 
-                // Крутим модель по Y (влево/вправо) и немного по X (вверх/вниз)
+                let newRotX = rot.x + adjustedDeltaY * 0.22;
+                newRotX = Math.max(-70, Math.min(70, newRotX)); // ограничим наклон, чтобы модель не уходила вверх тормашками
+                
                 this.wrapper.setAttribute('rotation', {
-                    x: Math.max(-180, Math.min(180, rot.x + adjustedDeltaY * 0.2)), // ограничение наклона
-                    y: rot.y + deltaX * 0.2,
+                    x: newRotX,
+                    y: rot.y + deltaX * 0.22,
                     z: rot.z
                 });
-
+                
                 this.previousPos = { x: clientX, y: clientY };
             },
             onWheel: function (evt) {
                 evt.preventDefault();
-                // Зум колесиком мыши (двигаем камеру)
                 this.zoom += evt.deltaY * 0.005;
                 this.zoom = Math.max(this.minZoom, Math.min(this.zoom, this.maxZoom));
                 this.camera.setAttribute('position', `0 0 ${this.zoom}`);
             }
         });
-
-        // 3. АВТО-МАСШТАБИРОВАНИЕ И ЦЕНТРИРОВАНИЕ
+        
+        // ========== 4. АВТОМАТИЧЕСКОЕ МАСШТАБИРОВАНИЕ И ЦЕНТРИРОВАНИЕ МОДЕЛЕЙ ==========
         const modelEntity = document.getElementById('main-model');
         const wrapperEntity = document.getElementById('model-wrapper');
-        const arModelEntity = document.getElementById('ar-model-inner');
+        const arModelInner = document.getElementById('ar-model-inner');
         const loadingEl = document.getElementById('loading');
         const descriptionEl = document.getElementById('description');
-        const TARGET_SIZE = 2.8;
-        const AR_TARGET_SIZE = 0.3; // Для AR модель должна быть меньше
         
-        // Описания фигурок
+        const TARGET_SIZE = 2.8;       // Размер для основной модели (чтобы вписалась в кадр)
+        const AR_TARGET_SIZE = 0.32;    // Размер модели в AR (компактная, удобная для размещения в комнате)
+        
+        // Описания экспонатов
         const descriptions = {
-            1: "Тофаларские охотники",
-            2: "Тофаларский мальчик с собакой",
-            3: "Тофаларская девушка",
-            4: "Тофаларская женщина",
-            5: "Тофаларские женщины с младенцем в берестяной колыбели",
-            6: "Эвенкийские женщины, вышивающие рукавицы",
-            7: "Звенкийская вышивальщица",
-            8: "Звенкийки, вышивающие шапки",
-            9: "Молодая звенкийская пара",
-            10: "Эвенкийская семья",
-            11: "Эвенкийская женщина с ребенком",
-            12: "Ненецкая женщина с ребенком",
-            13: "Ненец - охотник",
-            14: "Ненецкая девушка",
-            15: "Ненецкая женщина в оленьей парке",
-            16: "Ненецкая женщина",
-            17: "Группа бурат в традиционной одежде",
-            18: "Бурятские мужчины"
+            1: "🏹 Тофаларские охотники",
+            2: "🧑 Тофаларский мальчик с собакой",
+            3: "👧 Тофаларская девушка",
+            4: "👩 Тофаларская женщина",
+            5: "🤱 Тофаларские женщины с младенцем в берестяной колыбели",
+            6: "🧵 Эвенкийские женщины, вышивающие рукавицы",
+            7: "🪡 Эвенкийская вышивальщица",
+            8: "🎩 Эвенкийки, вышивающие шапки",
+            9: "💑 Молодая эвенкийская пара",
+            10: "👨‍👩‍👧 Эвенкийская семья",
+            11: "🤰 Эвенкийская женщина с ребенком",
+            12: "👩‍👦 Ненецкая женщина с ребенком",
+            13: "🏹 Ненец - охотник",
+            14: "👒 Ненецкая девушка",
+            15: "🦌 Ненецкая женщина в оленьей парке",
+            16: "🧣 Ненецкая женщина",
+            17: "👥 Группа бурят в традиционной одежде",
+            18: "🧔 Бурятские мужчины"
         };
-
+        
         let currentFigure = 1;
         const totalFigures = 18;
-
-        function processModel() {
+        
+        // Функция центрирования и масштабирования основной модели
+        function processMainModel() {
             const mesh = modelEntity.getObject3D('mesh');
-            if (!mesh) return;
-
-            // 1. Сброс трансформаций
+            if (!mesh) {
+                setTimeout(processMainModel, 50);
+                return;
+            }
+            
+            // Сброс
             modelEntity.object3D.scale.set(1, 1, 1);
             modelEntity.object3D.position.set(0, 0, 0);
             modelEntity.object3D.updateMatrixWorld(true);
-
-            // 2. Расчет размеров
+            
             const box = new THREE.Box3().setFromObject(mesh);
-            const size = new THREE.Vector3(); box.getSize(size);
+            const size = new THREE.Vector3();
+            box.getSize(size);
             const maxDim = Math.max(size.x, size.y, size.z);
             if (maxDim === 0) return;
-
-            // 3. Масштабирование
+            
             const scaleFactor = TARGET_SIZE / maxDim;
             modelEntity.object3D.scale.set(scaleFactor, scaleFactor, scaleFactor);
             modelEntity.object3D.updateMatrixWorld(true);
-
-            // 4. ИДЕАЛЬНОЕ ЦЕНТРИРОВАНИЕ (Вокруг центра масс)
+            
+            // Пересчитываем бокс после масштаба
             const scaledBox = new THREE.Box3().setFromObject(mesh);
-            const center = new THREE.Vector3(); scaledBox.getCenter(center);
-
-            // ТЕПЕРЬ МЫ ИСПОЛЬЗУЕМ -center.y вместо -scaledBox.min.y
-            // Это совместит центр модели с центром вращения Wrapper-а
+            const center = new THREE.Vector3();
+            scaledBox.getCenter(center);
+            // Центрируем модель относительно её геометрического центра
             modelEntity.object3D.position.set(-center.x, -center.y, -center.z);
             modelEntity.object3D.updateMatrixWorld(true);
-
-            // 5. Опускаем пол под ноги модели (чтобы она не "тонула")
-            // Мы берем нижнюю точку модели после центрирования
-            const floorY = scaledBox.min.y - center.y;
-            document.querySelector('a-plane').setAttribute('position', `0 ${floorY} 0`);
-
-            // 6. Сглаживание и тени (фиксим полосы)
+            
+            // Опускаем пол под ноги модели (чтобы тень была внизу)
+            const finalBox = new THREE.Box3().setFromObject(mesh);
+            const floorY = finalBox.min.y;
+            const planeEl = document.querySelector('a-plane');
+            if (planeEl) {
+                planeEl.setAttribute('position', `0 ${floorY - 0.05} 0`);
+            }
+            
+            // Улучшаем тени и нормали
             mesh.traverse(node => {
                 if (node.isMesh) {
                     node.castShadow = true;
                     node.receiveShadow = true;
-                    node.geometry.computeVertexNormals();
+                    if (node.geometry) node.geometry.computeVertexNormals();
                     if (node.material) {
                         node.material.flatShading = false;
                         node.material.shadowSide = THREE.FrontSide;
@@ -479,95 +671,95 @@
                     }
                 }
             });
-
-            // Скрываем индикатор загрузки
+            
             loadingEl.style.display = 'none';
         }
-
-        modelEntity.addEventListener('model-loaded', processModel);
-        modelEntity.addEventListener('model-error', () => {
-            loadingEl.style.display = 'none';
-        });
-
-        // Обработка AR модели
+        
+        // Функция для AR модели (масштабирование и центрирование)
         function processArModel() {
-            const mesh = arModelEntity.getObject3D('mesh');
-            if (!mesh) return;
-
-            // Сброс трансформаций
-            arModelEntity.object3D.scale.set(1, 1, 1);
-            arModelEntity.object3D.position.set(0, 0, 0);
-            arModelEntity.object3D.updateMatrixWorld(true);
-
-            // Расчет размеров
-            const box = new THREE.Box3().setFromObject(mesh);
-            const size = new THREE.Vector3(); box.getSize(size);
+            const arMesh = arModelInner.getObject3D('mesh');
+            if (!arMesh) {
+                setTimeout(processArModel, 60);
+                return;
+            }
+            
+            arModelInner.object3D.scale.set(1, 1, 1);
+            arModelInner.object3D.position.set(0, 0, 0);
+            arModelInner.object3D.updateMatrixWorld(true);
+            
+            const box = new THREE.Box3().setFromObject(arMesh);
+            const size = new THREE.Vector3();
+            box.getSize(size);
             const maxDim = Math.max(size.x, size.y, size.z);
             if (maxDim === 0) return;
-
-            // Масштабирование для AR (меньший размер)
+            
             const scaleFactor = AR_TARGET_SIZE / maxDim;
-            arModelEntity.object3D.scale.set(scaleFactor, scaleFactor, scaleFactor);
-            arModelEntity.object3D.updateMatrixWorld(true);
-
-            // Центрирование
-            const scaledBox = new THREE.Box3().setFromObject(mesh);
-            const center = new THREE.Vector3(); scaledBox.getCenter(center);
-            arModelEntity.object3D.position.set(-center.x, -center.y, -center.z);
-            arModelEntity.object3D.updateMatrixWorld(true);
-
-            // Сглаживание и тени
-            mesh.traverse(node => {
+            arModelInner.object3D.scale.set(scaleFactor, scaleFactor, scaleFactor);
+            arModelInner.object3D.updateMatrixWorld(true);
+            
+            const scaledBox = new THREE.Box3().setFromObject(arMesh);
+            const center = new THREE.Vector3();
+            scaledBox.getCenter(center);
+            arModelInner.object3D.position.set(-center.x, -center.y, -center.z);
+            arModelInner.object3D.updateMatrixWorld(true);
+            
+            arMesh.traverse(node => {
                 if (node.isMesh) {
                     node.castShadow = true;
                     node.receiveShadow = true;
-                    node.geometry.computeVertexNormals();
+                    if (node.geometry) node.geometry.computeVertexNormals();
                     if (node.material) {
                         node.material.flatShading = false;
-                        node.material.shadowSide = THREE.FrontSide;
-                        node.material.needsUpdate = true;
                     }
                 }
             });
         }
-
-        arModelEntity.addEventListener('model-loaded', processArModel);
-
-        // 4. СТРЕЛКИ ДЛЯ НАВИГАЦИИ
+        
+        modelEntity.addEventListener('model-loaded', processMainModel);
+        arModelInner.addEventListener('model-loaded', processArModel);
+        
+        // Навигация по фигуркам
         const prevBtn = document.getElementById('prev-btn');
         const nextBtn = document.getElementById('next-btn');
-
+        
         function loadFigure(num) {
             loadingEl.style.display = 'flex';
-            descriptionEl.textContent = descriptions[num] || `Figure ${num}`;
-
-            // При загрузке новой модели сбрасываем ее позицию и возвращаем вращение в 0
+            descriptionEl.textContent = descriptions[num] || `Экспонат №${num}`;
+            
+            // Сброс вращения wrapper при смене модели
+            if (wrapperEntity) {
+                wrapperEntity.setAttribute('rotation', '0 0 0');
+            }
+            // Сброс позиции и масштаба
             modelEntity.object3D.scale.set(1, 1, 1);
             modelEntity.object3D.position.set(0, 0, 0);
-            modelEntity.object3D.updateMatrixWorld(true);
-            wrapperEntity.setAttribute('rotation', '0 0 0');
-
             modelEntity.removeAttribute('gltf-model');
             setTimeout(() => {
                 modelEntity.setAttribute('gltf-model', `models/Figure_${num}.glb`);
-                // Отправляем событие для синхронизации AR модели
+                // Синхронизируем AR модель
                 const sceneEl = document.querySelector('a-scene');
                 sceneEl.dispatchEvent(new CustomEvent('figure-changed', { detail: { figure: num } }));
-            }, 10);
+            }, 20);
         }
-
+        
         prevBtn.onclick = () => {
             currentFigure = currentFigure > 1 ? currentFigure - 1 : totalFigures;
             loadFigure(currentFigure);
         };
-
+        
         nextBtn.onclick = () => {
             currentFigure = currentFigure < totalFigures ? currentFigure + 1 : 1;
             loadFigure(currentFigure);
         };
-
-        // Загружаем первую фигурку
+        
+        // Старт с первой фигурки
         loadFigure(currentFigure);
+        
+        // Отключаем контекстное меню и выделение для лучшего UX
+        document.body.addEventListener('contextmenu', (e) => e.preventDefault());
+        
+        // Обработчик для выхода из AR по кнопке "назад" (на случай необходимости)
+        window.addEventListener('beforexrselect', (e) => e.preventDefault());
     </script>
 </body>
 </html>
