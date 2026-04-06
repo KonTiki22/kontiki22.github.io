@@ -17,50 +17,58 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 80%;
-            max-width: 320px;
-            background: rgba(0, 0, 0, 0.75);
-            backdrop-filter: blur(10px);
+            width: 85%;
+            max-width: 340px;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(12px);
             border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 20px;
+            border-radius: 24px;
             padding: 25px;
             color: white;
             text-align: center;
             z-index: 300;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.6);
             pointer-events: auto;
         }
 
         #ar-instructions h3 {
             margin-top: 0;
-            font-family: 'Playfair Display', serif;
+            font-size: 22px;
             color: #4CC3D9;
+            margin-bottom: 15px;
         }
 
         #ar-instructions p {
-            font-size: 14px;
-            line-height: 1.5;
-            margin-bottom: 20px;
-            opacity: 0.9;
+            font-size: 15px;
+            line-height: 1.6;
+            margin-bottom: 15px;
+            text-align: left;
+        }
+
+        .gesture-info {
+            background: rgba(255,255,255,0.1);
+            padding: 10px;
+            border-radius: 12px;
+            font-size: 13px !important;
+            margin-bottom: 20px !important;
         }
 
         .instruction-btn {
             background: #4CC3D9;
             color: white;
             border: none;
-            padding: 10px 25px;
-            border-radius: 10px;
+            padding: 12px 30px;
+            border-radius: 12px;
             font-weight: bold;
             cursor: pointer;
             text-transform: uppercase;
-            letter-spacing: 1px;
+            width: 100%;
         }
 
-        /* Остальной интерфейс AR */
         #ar-ui {
             display: none;
             position: absolute;
-            bottom: 20px;
+            bottom: 25px;
             left: 0;
             right: 0;
             pointer-events: none;
@@ -73,12 +81,11 @@
             bottom: 0;
             border: 1px solid rgba(255,255,255,0.4);
             border-radius: 50%;
-            width: 55px;
-            height: 55px;
-            font-size: 24px;
+            width: 60px;
+            height: 60px;
+            font-size: 26px;
             z-index: 150;
             cursor: pointer;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -87,8 +94,8 @@
             transition: transform 0.15s ease;
         }
         .ar-action-btn:active { transform: scale(0.9); }
-        #ar-reset-btn { left: 20px; background: linear-gradient(135deg, #0078ff, #004ecc); }
-        #ar-exit-btn { right: 20px; background: linear-gradient(135deg, #ff3b3b, #cc0000); }
+        #ar-reset-btn { left: 25px; background: linear-gradient(135deg, #0078ff, #004ecc); }
+        #ar-exit-btn { right: 25px; background: linear-gradient(135deg, #ff3b3b, #cc0000); }
     </style>
 </head>
 <body>
@@ -107,19 +114,21 @@
 
         <button id="ar-mode-btn" class="custom-ar-button" style="display: none;">AR</button>
         <div id="ar-unsupported-msg" class="ar-unsupported-msg">
-            ⚠️ Ваше устройство не поддерживает WebXR AR. Доступен только 3D просмотр.
+            ⚠️ WebXR AR не поддерживается. Доступен только 3D.
         </div>
 
-        <!-- Окно инструкции -->
         <div id="ar-instructions">
-            <h3>Инструкция AR</h3>
-            <p>1. Медленно водите камерой, сканируя пол.<br>
-               2. Дождитесь появления синего кружка.<br>
-               3. Тапните по экрану, чтобы поставить экспонат.</p>
+            <h3>Подготовка к AR</h3>
+            <p>1. Медленно сканируйте пол камерой.<br>
+               2. Когда появится синий кружок, тапните по нему.</p>
+            <p class="gesture-info">
+                <b>Управление:</b><br>
+                • 1 палец: перемещение по полу<br>
+                • 2 пальца: вращение и масштаб
+            </p>
             <button class="instruction-btn" id="close-instr-btn">Понятно</button>
         </div>
 
-        <!-- Кнопки управления в AR -->
         <div id="ar-ui">
             <button id="ar-reset-btn" class="ar-action-btn">🔄</button>
             <button id="ar-exit-btn" class="ar-action-btn">✖</button>
@@ -162,13 +171,11 @@
     </a-scene>
 
     <script>
-        // --- Управление UI инструкции ---
         const instrWindow = document.getElementById('ar-instructions');
         document.getElementById('close-instr-btn').addEventListener('click', () => {
             instrWindow.style.display = 'none';
         });
 
-        // --- Логика кнопок AR ---
         document.getElementById('ar-exit-btn').addEventListener('click', () => {
             const sceneEl = document.querySelector('a-scene');
             if (sceneEl.renderer.xr.getSession()) sceneEl.renderer.xr.getSession().end();
@@ -196,7 +203,7 @@
             if (sceneEl && isArSupportedFlag) sceneEl.enterVR({ mode: 'immersive-ar' });
         });
         
-        // --- 1. AR УПРАВЛЕНИЕ (Исправлен поворот) ---
+        // --- 1. AR УПРАВЛЕНИЕ ---
         AFRAME.registerComponent('ar-placement', {
             init: function () {
                 this.reticle = document.getElementById('reticle');
@@ -206,6 +213,7 @@
                 const sceneEl = this.el;
 
                 sceneEl.addEventListener('ar-reset', () => {
+                    if (!this.arMode) return;
                     this.placed = false;
                     if (this.arModel) this.arModel.setAttribute('visible', 'false');
                     const session = sceneEl.renderer.xr.getSession();
@@ -218,7 +226,7 @@
                     if (sceneEl.is('ar-mode')) {
                         this.arMode = true; this.placed = false;
                         document.body.classList.add('ar-mode');
-                        instrWindow.style.display = 'block'; // Показать инструкцию
+                        instrWindow.style.display = 'block';
                         
                         const session = sceneEl.renderer.xr.getSession();
                         if (session) {
@@ -233,11 +241,13 @@
                 });
 
                 sceneEl.addEventListener('exit-vr', () => {
-                    this.arMode = false; document.body.classList.remove('ar-mode');
+                    this.arMode = false;
+                    this.placed = false;
+                    document.body.classList.remove('ar-mode');
                     instrWindow.style.display = 'none';
+                    if (this.arModel) this.arModel.setAttribute('visible', 'false'); // СКРЫВАЕМ МОДЕЛЬ ПРИ ВЫХОДЕ
                 });
 
-                // Жесты
                 this.onPointerDown = this.onPointerDown.bind(this);
                 this.onPointerUp = this.onPointerUp.bind(this);
                 this.onPointerMove = this.onPointerMove.bind(this);
@@ -266,12 +276,12 @@
                 this.arModel.object3D.quaternion.copy(this.reticle.object3D.quaternion);
                 this.arModel.setAttribute('visible', 'true');
                 this.placed = true; this.reticle.setAttribute('visible', 'false');
-                instrWindow.style.display = 'none'; // Скрыть инструкцию при установке
+                instrWindow.style.display = 'none';
                 if (window.navigator.vibrate) window.navigator.vibrate(50);
             },
 
             onPointerDown: function (evt) {
-                if (!this.arMode || !this.placed) return;
+                if (!this.arMode || !this.placed) return; // ПРЕДОТВРАЩАЕТ КОНФЛИКТ С ГАЛЕРЕЕЙ
                 if (evt.touches.length === 2) {
                     this.initialDistance = Math.hypot(evt.touches[0].clientX - evt.touches[1].clientX, evt.touches[0].clientY - evt.touches[1].clientY);
                     this.initialScale = this.arModel.object3D.scale.x;
@@ -286,14 +296,16 @@
             onPointerUp: function () { this.isDragging = false; },
 
             onPointerMove: function (evt) {
-                if (!this.arMode || !this.placed) return;
+                if (!this.arMode || !this.placed) return; // ПРЕДОТВРАЩАЕТ КОНФЛИКТ С ГАЛЕРЕЕЙ
                 if (evt.touches.length === 2) {
                     evt.preventDefault();
                     const currentDistance = Math.hypot(evt.touches[0].clientX - evt.touches[1].clientX, evt.touches[0].clientY - evt.touches[1].clientY);
                     const currentAngle = Math.atan2(evt.touches[0].clientY - evt.touches[1].clientY, evt.touches[0].clientX - evt.touches[1].clientX);
                     this.arModel.object3D.scale.setScalar(Math.max(0.1, Math.min(5.0, this.initialScale * (currentDistance / this.initialDistance))));
+                    
+                    // ИСПРАВЛЕН ЗНАК (-) - Теперь в AR крутится правильно вслед за пальцем
                     let deltaAngle = currentAngle - this.initialAngle;
-                    this.arModel.setAttribute('rotation', { x: 0, y: this.initialRotationY + deltaAngle * (180 / Math.PI), z: 0 });
+                    this.arModel.setAttribute('rotation', { x: 0, y: this.initialRotationY - deltaAngle * (180 / Math.PI), z: 0 });
                 }
                 else if (this.isDragging && evt.touches.length === 1) {
                     evt.preventDefault();
@@ -307,7 +319,7 @@
             }
         });
 
-        // --- 2. ГАЛЕРЕЯ УПРАВЛЕНИЕ (Исправлен поворот) ---
+        // --- 2. ГАЛЕРЕЯ УПРАВЛЕНИЕ ---
         AFRAME.registerComponent('gallery-controls', {
             init: function () {
                 this.wrapper = document.getElementById('model-wrapper');
@@ -366,7 +378,7 @@
             }
         });
 
-        // --- 3. СИНХРОНИЗАЦИЯ И СБРОС ---
+        // --- 3. СИНХРОНИЗАЦИЯ ---
         AFRAME.registerComponent('ar-model-sync', {
             init: function () {
                 this.arModelInner = document.getElementById('ar-model-inner');
@@ -409,6 +421,8 @@
         const descriptionEl = document.getElementById('description');
 
         const descriptions = { 1: "Тофаларские охотники", 2: "Тофаларский мальчик с собакой", 3: "Тофаларская девушка", 4: "Тофаларская женщина", 5: "Тофаларские женщины с младенцем в берестяной колыбели", 6: "Эвенкийские женщины, вышивающие рукавицы", 7: "Эвенкийская вышивальщица", 8: "Эвенкийки, вышивающие шапки", 9: "Молодая эвенкийская пара", 10: "Эвенкийская семья", 11: "Эвенкийская женщина с ребенком", 12: "Ненецкая женщина с ребенком", 13: "Ненец - охотник", 14: "Ненецкая девушка", 15: "Ненецкая женщина в оленьей парке", 16: "Ненецкая женщина", 17: "Группа бурят в традиционной одежде", 18: "Бурятские мужчины" };
+
+        let currentFigure = 1;
 
         function processMainModel() {
             const mesh = modelEntity.getObject3D('mesh');
