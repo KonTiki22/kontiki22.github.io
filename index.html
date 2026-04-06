@@ -10,7 +10,53 @@
     <script src="background-gradient.js"></script>
 
     <style>
-        /* Стили для новых кнопок в AR-режиме */
+        /* Стили для окна инструкции в AR */
+        #ar-instructions {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%;
+            max-width: 320px;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            padding: 25px;
+            color: white;
+            text-align: center;
+            z-index: 300;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            pointer-events: auto;
+        }
+
+        #ar-instructions h3 {
+            margin-top: 0;
+            font-family: 'Playfair Display', serif;
+            color: #4CC3D9;
+        }
+
+        #ar-instructions p {
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 20px;
+            opacity: 0.9;
+        }
+
+        .instruction-btn {
+            background: #4CC3D9;
+            color: white;
+            border: none;
+            padding: 10px 25px;
+            border-radius: 10px;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Остальной интерфейс AR */
         #ar-ui {
             display: none;
             position: absolute;
@@ -20,9 +66,8 @@
             pointer-events: none;
             z-index: 200;
         }
-        body.ar-mode #ar-ui {
-            display: block;
-        }
+        body.ar-mode #ar-ui { display: block; }
+        
         .ar-action-btn {
             position: absolute;
             bottom: 0;
@@ -41,17 +86,9 @@
             color: white;
             transition: transform 0.15s ease;
         }
-        .ar-action-btn:active {
-            transform: scale(0.9);
-        }
-        #ar-reset-btn {
-            left: 20px;
-            background: linear-gradient(135deg, #0078ff, #004ecc); /* Синяя для сброса */
-        }
-        #ar-exit-btn {
-            right: 20px;
-            background: linear-gradient(135deg, #ff3b3b, #cc0000); /* Красная для выхода */
-        }
+        .ar-action-btn:active { transform: scale(0.9); }
+        #ar-reset-btn { left: 20px; background: linear-gradient(135deg, #0078ff, #004ecc); }
+        #ar-exit-btn { right: 20px; background: linear-gradient(135deg, #ff3b3b, #cc0000); }
     </style>
 </head>
 <body>
@@ -73,7 +110,16 @@
             ⚠️ Ваше устройство не поддерживает WebXR AR. Доступен только 3D просмотр.
         </div>
 
-        <!-- Новый интерфейс управления внутри AR -->
+        <!-- Окно инструкции -->
+        <div id="ar-instructions">
+            <h3>Инструкция AR</h3>
+            <p>1. Медленно водите камерой, сканируя пол.<br>
+               2. Дождитесь появления синего кружка.<br>
+               3. Тапните по экрану, чтобы поставить экспонат.</p>
+            <button class="instruction-btn" id="close-instr-btn">Понятно</button>
+        </div>
+
+        <!-- Кнопки управления в AR -->
         <div id="ar-ui">
             <button id="ar-reset-btn" class="ar-action-btn">🔄</button>
             <button id="ar-exit-btn" class="ar-action-btn">✖</button>
@@ -113,127 +159,88 @@
         </a-entity>
 
         <a-entity id="main-camera" camera look-controls="enabled: false" wasd-controls="enabled: false" position="0 0 0.25"></a-entity>
-
     </a-scene>
 
     <script>
+        // --- Управление UI инструкции ---
+        const instrWindow = document.getElementById('ar-instructions');
+        document.getElementById('close-instr-btn').addEventListener('click', () => {
+            instrWindow.style.display = 'none';
+        });
+
+        // --- Логика кнопок AR ---
+        document.getElementById('ar-exit-btn').addEventListener('click', () => {
+            const sceneEl = document.querySelector('a-scene');
+            if (sceneEl.renderer.xr.getSession()) sceneEl.renderer.xr.getSession().end();
+        });
+
+        document.getElementById('ar-reset-btn').addEventListener('click', () => {
+            document.querySelector('a-scene').emit('ar-reset');
+        });
+
         const arButton = document.getElementById('ar-mode-btn');
-        const unsupportedMsg = document.getElementById('ar-unsupported-msg');
         let isArSupportedFlag = false;
 
         async function checkARSupport() {
             if ('xr' in navigator && 'isSessionSupported' in navigator.xr) {
-                try {
-                    const supported = await navigator.xr.isSessionSupported('immersive-ar');
-                    isArSupportedFlag = supported;
-                    arButton.style.display = supported ? 'flex' : 'none';
-                    unsupportedMsg.style.display = supported ? 'none' : 'block';
-                } catch (err) {
-                    isArSupportedFlag = false;
-                    arButton.style.display = 'none';
-                    unsupportedMsg.style.display = 'block';
-                }
-            } else {
-                arButton.style.display = 'none';
-                unsupportedMsg.style.display = 'block';
+                const supported = await navigator.xr.isSessionSupported('immersive-ar');
+                isArSupportedFlag = supported;
+                arButton.style.display = supported ? 'flex' : 'none';
+                document.getElementById('ar-unsupported-msg').style.display = supported ? 'none' : 'block';
             }
         }
         checkARSupport();
 
-        async function enterAR() {
+        arButton.addEventListener('click', () => {
             const sceneEl = document.querySelector('a-scene');
-            if (!sceneEl || !isArSupportedFlag) {
-                alert('Ваше устройство не поддерживает WebXR AR');
-                return;
-            }
-            try {
-                await sceneEl.enterVR({ mode: 'immersive-ar' });
-            } catch (err) {
-                console.error(err);
-            }
-        }
-        arButton.addEventListener('click', enterAR);
+            if (sceneEl && isArSupportedFlag) sceneEl.enterVR({ mode: 'immersive-ar' });
+        });
         
-        // --- 1. АБСОЛЮТНО НАДЕЖНОЕ РАЗМЕЩЕНИЕ В AR ---
+        // --- 1. AR УПРАВЛЕНИЕ (Исправлен поворот) ---
         AFRAME.registerComponent('ar-placement', {
             init: function () {
                 this.reticle = document.getElementById('reticle');
                 this.arModel = document.getElementById('ar-model');
+                this.arMode = false; this.placed = false; this.hitTestSource = null;
                 
-                this.arMode = false;
-                this.placed = false;
-                this.hitTestSource = null;
-                this.localSpace = null;
-                this.viewerSpace = null;
-
-                this.isDragging = false;
-                this.previousPos = { x: 0, y: 0 };
-                this.initialDistance = 0;
-                this.initialScale = 1;
-                this.initialAngle = 0;
-                this.initialRotationY = 0;
-
-                this.onSelect = this.onSelect.bind(this);
-                this.onPointerDown = this.onPointerDown.bind(this);
-                this.onPointerUp = this.onPointerUp.bind(this);
-                this.onPointerMove = this.onPointerMove.bind(this);
-
                 const sceneEl = this.el;
 
-                // Слушаем наше кастомное событие сброса (от кнопки 🔄)
                 sceneEl.addEventListener('ar-reset', () => {
-                    if (!this.arMode) return;
                     this.placed = false;
                     if (this.arModel) this.arModel.setAttribute('visible', 'false');
-                    
-                    // Перезапускаем сканирование пола
                     const session = sceneEl.renderer.xr.getSession();
                     if (session && this.viewerSpace) {
-                        session.requestHitTestSource({ space: this.viewerSpace }).then((source) => {
-                            this.hitTestSource = source;
-                        });
+                        session.requestHitTestSource({ space: this.viewerSpace }).then((s) => { this.hitTestSource = s; });
                     }
                 });
 
                 sceneEl.addEventListener('enter-vr', () => {
                     if (sceneEl.is('ar-mode')) {
-                        this.arMode = true;
-                        this.placed = false;
+                        this.arMode = true; this.placed = false;
                         document.body.classList.add('ar-mode');
+                        instrWindow.style.display = 'block'; // Показать инструкцию
                         
-                        if (this.reticle) this.reticle.setAttribute('visible', 'false');
-                        if (this.arModel) this.arModel.setAttribute('visible', 'false');
-
                         const session = sceneEl.renderer.xr.getSession();
                         if (session) {
-                            session.addEventListener('select', this.onSelect);
-                            
-                            session.requestReferenceSpace('viewer').then((viewerSpace) => {
-                                this.viewerSpace = viewerSpace;
-                                session.requestHitTestSource({ space: viewerSpace }).then((source) => {
-                                    this.hitTestSource = source;
-                                });
+                            session.addEventListener('select', () => this.onSelect());
+                            session.requestReferenceSpace('viewer').then((vs) => { 
+                                this.viewerSpace = vs; 
+                                session.requestHitTestSource({ space: vs }).then((s) => { this.hitTestSource = s; });
                             });
-                            
-                            session.requestReferenceSpace('local').then((space) => {
-                                this.localSpace = space;
-                            });
+                            session.requestReferenceSpace('local').then((s) => { this.localSpace = s; });
                         }
                     }
                 });
 
                 sceneEl.addEventListener('exit-vr', () => {
-                    this.arMode = false;
-                    this.placed = false;
-                    this.hitTestSource = null;
-                    document.body.classList.remove('ar-mode');
-                    if (this.reticle) this.reticle.setAttribute('visible', 'false');
-                    if (this.arModel) this.arModel.setAttribute('visible', 'false');
-                    
-                    const session = sceneEl.renderer.xr?.getSession();
-                    if (session) session.removeEventListener('select', this.onSelect);
+                    this.arMode = false; document.body.classList.remove('ar-mode');
+                    instrWindow.style.display = 'none';
                 });
 
+                // Жесты
+                this.onPointerDown = this.onPointerDown.bind(this);
+                this.onPointerUp = this.onPointerUp.bind(this);
+                this.onPointerMove = this.onPointerMove.bind(this);
                 window.addEventListener('touchstart', this.onPointerDown, { passive: false });
                 window.addEventListener('touchend', this.onPointerUp);
                 window.addEventListener('touchmove', this.onPointerMove, { passive: false });
@@ -243,168 +250,70 @@
                 if (!this.arMode || !this.hitTestSource || this.placed || !this.localSpace) return;
                 const frame = this.el.sceneEl.frame;
                 if (!frame) return;
-
                 const hitTestResults = frame.getHitTestResults(this.hitTestSource);
                 if (hitTestResults.length > 0) {
                     const hit = hitTestResults[0];
                     const pose = hit.getPose(this.localSpace);
-                    
                     this.reticle.setAttribute('visible', 'true');
                     this.reticle.setAttribute('position', pose.transform.position);
                     this.reticle.object3D.quaternion.copy(pose.transform.orientation);
-                } else {
-                    this.reticle.setAttribute('visible', 'false');
-                }
+                } else { this.reticle.setAttribute('visible', 'false'); }
             },
 
             onSelect: function () {
                 if (!this.arMode || this.placed || !this.reticle.getAttribute('visible')) return;
-                
-                const pos = this.reticle.getAttribute('position');
-                const rot = this.reticle.object3D.quaternion;
-                
-                this.arModel.setAttribute('position', pos);
-                this.arModel.object3D.quaternion.copy(rot);
+                this.arModel.setAttribute('position', this.reticle.getAttribute('position'));
+                this.arModel.object3D.quaternion.copy(this.reticle.object3D.quaternion);
                 this.arModel.setAttribute('visible', 'true');
-                
-                this.placed = true;
-                this.reticle.setAttribute('visible', 'false');
-                this.hitTestSource = null; 
-                
+                this.placed = true; this.reticle.setAttribute('visible', 'false');
+                instrWindow.style.display = 'none'; // Скрыть инструкцию при установке
                 if (window.navigator.vibrate) window.navigator.vibrate(50);
             },
 
             onPointerDown: function (evt) {
                 if (!this.arMode || !this.placed) return;
                 if (evt.touches.length === 2) {
-                    const dx = evt.touches[0].clientX - evt.touches[1].clientX;
-                    const dy = evt.touches[0].clientY - evt.touches[1].clientY;
-                    this.initialDistance = Math.hypot(dx, dy);
+                    this.initialDistance = Math.hypot(evt.touches[0].clientX - evt.touches[1].clientX, evt.touches[0].clientY - evt.touches[1].clientY);
                     this.initialScale = this.arModel.object3D.scale.x;
-                    this.initialAngle = Math.atan2(dy, dx);
-                    const rot = this.arModel.getAttribute('rotation');
-                    this.initialRotationY = rot.y;
+                    this.initialAngle = Math.atan2(evt.touches[0].clientY - evt.touches[1].clientY, evt.touches[0].clientX - evt.touches[1].clientX);
+                    this.initialRotationY = this.arModel.getAttribute('rotation').y;
                 } else if (evt.touches.length === 1) {
                     this.isDragging = true;
                     this.previousPos = { x: evt.touches[0].clientX, y: evt.touches[0].clientY };
                 }
             },
 
-            onPointerUp: function () {
-                this.isDragging = false;
-            },
+            onPointerUp: function () { this.isDragging = false; },
 
             onPointerMove: function (evt) {
                 if (!this.arMode || !this.placed) return;
                 if (evt.touches.length === 2) {
                     evt.preventDefault();
-                    const dx = evt.touches[0].clientX - evt.touches[1].clientX;
-                    const dy = evt.touches[0].clientY - evt.touches[1].clientY;
-                    const currentDistance = Math.hypot(dx, dy);
-                    const currentAngle = Math.atan2(dy, dx);
-
-                    let scale = this.initialScale * (currentDistance / this.initialDistance);
-                    scale = Math.max(0.1, Math.min(5.0, scale));
-                    this.arModel.object3D.scale.set(scale, scale, scale);
-
-                    // ИСПРАВЛЕН ЗНАК (-) - Инверсия вращения в AR
+                    const currentDistance = Math.hypot(evt.touches[0].clientX - evt.touches[1].clientX, evt.touches[0].clientY - evt.touches[1].clientY);
+                    const currentAngle = Math.atan2(evt.touches[0].clientY - evt.touches[1].clientY, evt.touches[0].clientX - evt.touches[1].clientX);
+                    this.arModel.object3D.scale.setScalar(Math.max(0.1, Math.min(5.0, this.initialScale * (currentDistance / this.initialDistance))));
                     let deltaAngle = currentAngle - this.initialAngle;
-                    this.arModel.setAttribute('rotation', { x: 0, y: this.initialRotationY - deltaAngle * (180 / Math.PI), z: 0 });
+                    this.arModel.setAttribute('rotation', { x: 0, y: this.initialRotationY + deltaAngle * (180 / Math.PI), z: 0 });
                 }
                 else if (this.isDragging && evt.touches.length === 1) {
                     evt.preventDefault();
-                    const clientX = evt.touches[0].clientX;
-                    const clientY = evt.touches[0].clientY;
-                    const deltaX = clientX - this.previousPos.x;
-                    const deltaY = clientY - this.previousPos.y;
-
+                    const deltaX = evt.touches[0].clientX - this.previousPos.x;
+                    const deltaY = evt.touches[0].clientY - this.previousPos.y;
                     let pos = this.arModel.getAttribute('position');
-                    pos.x += deltaX * 0.002;
-                    pos.z += deltaY * 0.002;
+                    pos.x += deltaX * 0.002; pos.z += deltaY * 0.002;
                     this.arModel.setAttribute('position', pos);
-                    this.previousPos = { x: clientX, y: clientY };
+                    this.previousPos = { x: evt.touches[0].clientX, y: evt.touches[0].clientY };
                 }
             }
         });
 
-        AFRAME.registerComponent('log-webxr', {
-            init: function () {
-                this.el.addEventListener('enter-vr', (evt) => { console.log('Режим:', evt.detail.session.mode); });
-                this.el.addEventListener('exit-vr', () => { console.log('Выход из VR/AR'); });
-            }
-        });
-
-        // --- ФИКС ОШИБКИ ПОЗИЦИОНИРОВАНИЯ: Жесткий сброс матриц ---
-        AFRAME.registerComponent('ar-model-sync', {
-            init: function () {
-                this.arModelInner = document.getElementById('ar-model-inner');
-                this.arModelParent = document.getElementById('ar-model');
-                this.currentFigure = 1;
-                this.el.addEventListener('figure-changed', (evt) => {
-                    this.currentFigure = evt.detail.figure;
-                    this.updateModel();
-                });
-                this.updateModel();
-            },
-            updateModel: function () {
-                if (!this.arModelInner) return;
-                this.arModelInner.removeAttribute('gltf-model');
-                setTimeout(() => {
-                    this.arModelInner.setAttribute('gltf-model', `models/Figure_${this.currentFigure}.glb`);
-                    this.arModelInner.addEventListener('model-loaded', () => { this.scaleArModelToFit(); }, { once: true });
-                }, 30);
-            },
-            scaleArModelToFit: function () {
-                const object = this.arModelInner.object3D;
-                if (!object || object.children.length === 0) {
-                    setTimeout(() => this.scaleArModelToFit(), 100);
-                    return;
-                }
-                
-                // Принудительно очищаем вращение/позицию родителя перед расчетом!
-                if (this.arModelParent) {
-                    this.arModelParent.object3D.rotation.set(0, 0, 0);
-                    this.arModelParent.object3D.scale.set(1, 1, 1);
-                    this.arModelParent.object3D.updateMatrixWorld(true);
-                }
-
-                object.scale.set(1, 1, 1);
-                object.rotation.set(0, 0, 0);
-                object.position.set(0, 0, 0);
-                object.updateMatrixWorld(true);
-
-                const box = new THREE.Box3().setFromObject(object);
-                const size = new THREE.Vector3();
-                box.getSize(size);
-                const maxDim = Math.max(size.x, size.y, size.z);
-                if (maxDim === 0 || isNaN(maxDim)) return;
-                
-                const TARGET_AR_SIZE = 0.20; 
-                const scaleFactor = TARGET_AR_SIZE / maxDim;
-                object.scale.set(scaleFactor, scaleFactor, scaleFactor);
-                object.updateMatrixWorld(true);
-                
-                const centeredBox = new THREE.Box3().setFromObject(object);
-                const center = new THREE.Vector3();
-                centeredBox.getCenter(center);
-                object.position.set(-center.x, -centeredBox.min.y, -center.z);
-                object.updateMatrixWorld(true);
-            }
-        });
-
-        // 3D галерея (обычный режим)
+        // --- 2. ГАЛЕРЕЯ УПРАВЛЕНИЕ (Исправлен поворот) ---
         AFRAME.registerComponent('gallery-controls', {
             init: function () {
                 this.wrapper = document.getElementById('model-wrapper');
                 this.camera = document.getElementById('main-camera');
-                this.isDragging = false;
-                this.previousPos = { x: 0, y: 0 };
-                this.zoom = 0.175;
-                this.minZoom = 0.10;
-                this.maxZoom = 0.175;
-                this.initialDistance = 0;
-                this.initialZoom = 0.175;
-
+                this.isDragging = false; this.zoom = 0.175;
+                
                 this.onPointerDown = this.onPointerDown.bind(this);
                 this.onPointerUp = this.onPointerUp.bind(this);
                 this.onPointerMove = this.onPointerMove.bind(this);
@@ -417,12 +326,10 @@
                 document.addEventListener('touchend', this.onPointerUp);
                 document.addEventListener('touchmove', this.onPointerMove, { passive: false });
                 document.addEventListener('wheel', this.onWheel, { passive: false });
-
                 this.camera.setAttribute('position', `0 0 ${this.zoom}`);
             },
             onPointerDown: function (evt) {
-                if (document.body.classList.contains('ar-mode')) return;
-                if (evt.target.closest && (evt.target.tagName === 'BUTTON' || evt.target.closest('button'))) return;
+                if (document.body.classList.contains('ar-mode') || (evt.target.tagName === 'BUTTON' || evt.target.closest('button'))) return;
                 this.isDragging = true;
                 if (evt.touches && evt.touches.length === 2) {
                     this.initialDistance = Math.hypot(evt.touches[0].clientX - evt.touches[1].clientX, evt.touches[0].clientY - evt.touches[1].clientY);
@@ -436,30 +343,63 @@
                 if (document.body.classList.contains('ar-mode') || !this.isDragging) return;
                 if (evt.touches && evt.touches.length === 2) {
                     evt.preventDefault();
-                    let currentDistance = Math.hypot(evt.touches[0].clientX - evt.touches[1].clientX, evt.touches[0].clientY - evt.touches[1].clientY);
-                    this.zoom = Math.max(this.minZoom, Math.min(this.initialZoom * (this.initialDistance / currentDistance), this.maxZoom));
+                    let dist = Math.hypot(evt.touches[0].clientX - evt.touches[1].clientX, evt.touches[0].clientY - evt.touches[1].clientY);
+                    this.zoom = Math.max(0.1, Math.min(0.175, this.initialZoom * (this.initialDistance / dist)));
                     this.camera.setAttribute('position', `0 0 ${this.zoom}`);
                     return;
                 }
                 evt.preventDefault();
                 let clientX = evt.touches ? evt.touches[0].clientX : evt.clientX;
                 let clientY = evt.touches ? evt.touches[0].clientY : evt.clientY;
+                let rot = this.wrapper.getAttribute('rotation');
                 let deltaX = clientX - this.previousPos.x;
                 let deltaY = clientY - this.previousPos.y;
-                let rot = this.wrapper.getAttribute('rotation');
-                let rotYRad = rot.y * Math.PI / 180;
-                
-                // ИСПРАВЛЕНЫ ЗНАКИ (-) - Инверсия вращения в 3D галерее
-                let adjustedDeltaY = deltaY * Math.cos(rotYRad);
-                let newRotX = Math.max(-70, Math.min(70, rot.x - adjustedDeltaY * 0.22));
-                this.wrapper.setAttribute('rotation', { x: newRotX, y: rot.y - deltaX * 0.22, z: rot.z });
+                let newRotX = Math.max(-70, Math.min(70, rot.x + deltaY * Math.cos(rot.y * Math.PI / 180) * 0.22));
+                this.wrapper.setAttribute('rotation', { x: newRotX, y: rot.y + deltaX * 0.22, z: rot.z });
                 this.previousPos = { x: clientX, y: clientY };
             },
             onWheel: function (evt) {
                 if (document.body.classList.contains('ar-mode')) return;
                 evt.preventDefault();
-                this.zoom = Math.max(this.minZoom, Math.min(this.zoom + evt.deltaY * 0.001, this.maxZoom));
+                this.zoom = Math.max(0.1, Math.min(0.175, this.zoom + evt.deltaY * 0.001));
                 this.camera.setAttribute('position', `0 0 ${this.zoom}`);
+            }
+        });
+
+        // --- 3. СИНХРОНИЗАЦИЯ И СБРОС ---
+        AFRAME.registerComponent('ar-model-sync', {
+            init: function () {
+                this.arModelInner = document.getElementById('ar-model-inner');
+                this.arModelParent = document.getElementById('ar-model');
+                this.el.addEventListener('figure-changed', (evt) => {
+                    this.currentFigure = evt.detail.figure;
+                    this.updateModel();
+                });
+                this.updateModel();
+            },
+            updateModel: function () {
+                if (!this.arModelInner) return;
+                this.arModelInner.removeAttribute('gltf-model');
+                setTimeout(() => {
+                    this.arModelInner.setAttribute('gltf-model', `models/Figure_${this.currentFigure || 1}.glb`);
+                    this.arModelInner.addEventListener('model-loaded', () => { this.scaleArModelToFit(); }, { once: true });
+                }, 30);
+            },
+            scaleArModelToFit: function () {
+                const object = this.arModelInner.object3D;
+                if (!object) return;
+                if (this.arModelParent) this.arModelParent.object3D.rotation.set(0,0,0);
+                object.rotation.set(0,0,0); object.scale.set(1,1,1); object.position.set(0,0,0);
+                object.updateMatrixWorld(true);
+                const box = new THREE.Box3().setFromObject(object);
+                const size = new THREE.Vector3(); box.getSize(size);
+                const maxDim = Math.max(size.x, size.y, size.z);
+                if (maxDim === 0) return;
+                object.scale.setScalar(0.20 / maxDim);
+                object.updateMatrixWorld(true);
+                const cBox = new THREE.Box3().setFromObject(object);
+                const center = new THREE.Vector3(); cBox.getCenter(center);
+                object.position.set(-center.x, -cBox.min.y, -center.z);
             }
         });
 
@@ -467,57 +407,24 @@
         const wrapperEntity = document.getElementById('model-wrapper');
         const loadingEl = document.getElementById('loading');
         const descriptionEl = document.getElementById('description');
-        const TARGET_SIZE = 0.15;
 
-        const descriptions = {
-            1: "Тофаларские охотники", 2: "Тофаларский мальчик с собакой", 3: "Тофаларская девушка", 4: "Тофаларская женщина",
-            5: "Тофаларские женщины с младенцем в берестяной колыбели", 6: "Эвенкийские женщины, вышивающие рукавицы",
-            7: "Эвенкийская вышивальщица", 8: "Эвенкийки, вышивающие шапки", 9: "Молодая эвенкийская пара", 10: "Эвенкийская семья",
-            11: "Эвенкийская женщина с ребенком", 12: "Ненецкая женщина с ребенком", 13: "Ненец - охотник", 14: "Ненецкая девушка",
-            15: "Ненецкая женщина в оленьей парке", 16: "Ненецкая женщина", 17: "Группа бурят в традиционной одежде", 18: "Бурятские мужчины"
-        };
-
-        let currentFigure = 1;
-        const totalFigures = 18;
+        const descriptions = { 1: "Тофаларские охотники", 2: "Тофаларский мальчик с собакой", 3: "Тофаларская девушка", 4: "Тофаларская женщина", 5: "Тофаларские женщины с младенцем в берестяной колыбели", 6: "Эвенкийские женщины, вышивающие рукавицы", 7: "Эвенкийская вышивальщица", 8: "Эвенкийки, вышивающие шапки", 9: "Молодая эвенкийская пара", 10: "Эвенкийская семья", 11: "Эвенкийская женщина с ребенком", 12: "Ненецкая женщина с ребенком", 13: "Ненец - охотник", 14: "Ненецкая девушка", 15: "Ненецкая женщина в оленьей парке", 16: "Ненецкая женщина", 17: "Группа бурят в традиционной одежде", 18: "Бурятские мужчины" };
 
         function processMainModel() {
             const mesh = modelEntity.getObject3D('mesh');
             if (!mesh) return setTimeout(processMainModel, 50);
-            
-            // ФИКС ОШИБКИ ПОЗИЦИОНИРОВАНИЯ: Очищаем угол вращения обертки перед расчетом!
-            if (wrapperEntity) {
-                wrapperEntity.object3D.rotation.set(0, 0, 0);
-                wrapperEntity.object3D.updateMatrixWorld(true);
-            }
-
-            modelEntity.object3D.scale.set(1, 1, 1);
-            modelEntity.object3D.rotation.set(0, 0, 0);
-            modelEntity.object3D.position.set(0, 0, 0);
+            if (wrapperEntity) { wrapperEntity.object3D.rotation.set(0,0,0); wrapperEntity.object3D.updateMatrixWorld(true); }
+            modelEntity.object3D.rotation.set(0,0,0); modelEntity.object3D.scale.set(1,1,1); modelEntity.object3D.position.set(0,0,0);
             modelEntity.object3D.updateMatrixWorld(true);
-            
             const box = new THREE.Box3().setFromObject(mesh);
             const size = new THREE.Vector3(); box.getSize(size);
-            if (Math.max(size.x, size.y, size.z) === 0) return;
-            
-            const scaleFactor = TARGET_SIZE / Math.max(size.x, size.y, size.z);
-            modelEntity.object3D.scale.set(scaleFactor, scaleFactor, scaleFactor);
+            modelEntity.object3D.scale.setScalar(0.15 / Math.max(size.x, size.y, size.z));
             modelEntity.object3D.updateMatrixWorld(true);
-            
-            const scaledBox = new THREE.Box3().setFromObject(mesh);
-            const center = new THREE.Vector3(); scaledBox.getCenter(center);
+            const cBox = new THREE.Box3().setFromObject(mesh);
+            const center = new THREE.Vector3(); cBox.getCenter(center);
             modelEntity.object3D.position.set(-center.x, -center.y, -center.z);
-            modelEntity.object3D.updateMatrixWorld(true);
-            
-            const planeEl = document.querySelector('a-plane');
-            if (planeEl) planeEl.setAttribute('position', `0 ${new THREE.Box3().setFromObject(mesh).min.y - 0.05} 0`);
-            
-            mesh.traverse(node => {
-                if (node.isMesh) {
-                    node.castShadow = true; node.receiveShadow = true;
-                    if (node.geometry) node.geometry.computeVertexNormals();
-                    if (node.material) { node.material.flatShading = false; node.material.shadowSide = THREE.FrontSide; node.material.needsUpdate = true; }
-                }
-            });
+            const pEl = document.querySelector('a-plane');
+            if (pEl) pEl.setAttribute('position', `0 ${new THREE.Box3().setFromObject(mesh).min.y - 0.05} 0`);
             loadingEl.style.display = 'none';
         }
 
@@ -525,7 +432,7 @@
 
         function loadFigure(num) {
             loadingEl.style.display = 'flex';
-            descriptionEl.textContent = descriptions[num] || `Экспонат №${num}`;
+            descriptionEl.textContent = descriptions[num] || "";
             if (wrapperEntity) wrapperEntity.setAttribute('rotation', '0 0 0');
             modelEntity.removeAttribute('gltf-model');
             setTimeout(() => {
@@ -534,32 +441,16 @@
             }, 20);
         }
 
-        document.getElementById('prev-btn').onclick = () => { currentFigure = currentFigure > 1 ? currentFigure - 1 : totalFigures; loadFigure(currentFigure); };
-        document.getElementById('next-btn').onclick = () => { currentFigure = currentFigure < totalFigures ? currentFigure + 1 : 1; loadFigure(currentFigure); };
-        loadFigure(currentFigure);
+        document.getElementById('prev-btn').onclick = () => { currentFigure = (currentFigure > 1) ? currentFigure - 1 : 18; loadFigure(currentFigure); };
+        document.getElementById('next-btn').onclick = () => { currentFigure = (currentFigure < 18) ? currentFigure + 1 : 1; loadFigure(currentFigure); };
+        loadFigure(1);
 
-        document.body.addEventListener('contextmenu', (e) => e.preventDefault());
-
-        // Пропускаем тапы по экрану, но блокируем случайные нажатия на кнопки интерфейса
         const overlay = document.getElementById('overlay');
         if (overlay) {
             overlay.addEventListener('beforexrselect', (e) => {
-                if (e.target.tagName === 'BUTTON' || e.target.closest('button')) { e.preventDefault(); }
+                if (e.target.tagName === 'BUTTON' || e.target.closest('button')) e.preventDefault();
             });
         }
-
-        // --- ЛОГИКА НОВЫХ КНОПОК В AR ---
-        document.getElementById('ar-exit-btn').addEventListener('click', () => {
-            const sceneEl = document.querySelector('a-scene');
-            if (sceneEl.renderer.xr.getSession()) {
-                sceneEl.renderer.xr.getSession().end(); // Закрываем AR сессию
-            }
-        });
-
-        document.getElementById('ar-reset-btn').addEventListener('click', () => {
-            const sceneEl = document.querySelector('a-scene');
-            sceneEl.emit('ar-reset'); // Запускаем событие сброса
-        });
     </script>
 </body>
 </html>
