@@ -149,17 +149,22 @@
             if (sceneEl) sceneEl.enterVR({ mode: 'immersive-ar' });
         });
         
-        // --- 1. AR УПРАВЛЕНИЕ ---
+        // --- 1. AR УПРАВЛЕНИЕ (ИСПРАВЛЕНО) ---
         AFRAME.registerComponent('ar-placement', {
             init: function () {
                 this.reticle = document.getElementById('reticle');
                 this.arModel = document.getElementById('ar-model');
                 this.arMode = false; this.placed = false; this.hitTestSource = null;
+                this.localSpace = null;
                 const sceneEl = this.el;
 
                 this.resetPlacement = () => {
                     this.placed = false;
-                    if (this.arModel) this.arModel.setAttribute('visible', false);
+                    if (this.arModel) {
+                        this.arModel.setAttribute('visible', false);
+                        this.arModel.object3D.scale.setScalar(1);
+                        this.arModel.object3D.rotation.set(0, 0, 0);
+                    }
                     console.log("AR State Reset");
                 };
 
@@ -171,14 +176,107 @@
                         this.arMode = true; this.placed = false;
                         document.body.classList.add('ar-mode');
                         if (!sessionStorage.getItem('ar_hint_shown')) instrWindow.style.display = 'block';
-                        
+
                         const session = sceneEl.renderer.xr.getSession();
                         if (session) {
                             session.addEventListener('select', () => this.onSelect());
-                            session.requestReferenceSpace('viewer').then((vs) => { 
-                                this.viewerSpace = vs; 
+                            session.requestReferenceSpace('viewer').then((vs) => {
+                                this.viewerSpace = vs;
                                 session.requestHitTestSource({ space: vs }).then((s) => { this.hitTestSource = s; });
                             });
+                            session.requestReferenceSpace('local').then((s) => { this.localSpace = s; });
+                        }
+                    }
+                });
+
+                sceneEl.addEventListener('exit-vr', () => {
+                    this.arMode = false; this.placed = false;
+                    document.body.classList.remove('ar-mode');
+                    this.resetPlacement();
+                    if (this.hitTestSource) {
+                        this.hitTestSource.cancel();
+                        this.hitTestSource = null;
+                    }
+                    this.localSpace = null;
+                });
+
+                this.onPointerDown = this.onPointerDown.bind(this);
+                this.onPointerUp = this.onPointerUp.bind(this);
+                this.onPointerMove = this.onPointerMove.bind(this);
+                window.addEventListener('touchstart', this.onPointerDown, { passive: false });
+                window.addEventListener('touchend', this.onPointerUp);
+                window.addEventListener('touchmove', this.onPointerMove, { passive: false });
+            },
+
+            tick: function () {
+                if (!this.arMode || !this.hitTestSource || this.placed || !this.localSpace) return;
+                const frame = this.el.sceneEl.frame;
+                if (!frame) return;
+
+                try {
+                    const results = frame.getHitTestResults(this.hitTestSource);
+                    if (results.length > 0) {
+                        const pose = results[0].getPose(this.localSpace);
+                        if (pose) {
+                            this.reticle.setAttribute('visible', true);
+                            this.reticle.setAttribute('position', pose.transform.position);
+                            this.reticle.object3D.quaternion.copy(pose.transform.orientation);
+                        }
+                    } else {
+                        this.reticle.setAttribute('visible', false);
+                    }
+                } catch (e) {
+                    console.warn("XR HitTest error, ignoring frame", e);
+                }
+            },
+
+            onSelect: function () {
+                if (instrWindow.style.display === 'block') return;
+                if (!this.arMode || this.placed || !this.reticle.getAttribute('visible')) return;
+
+                this.arModel.object3D.position.copy(this.reticle.object3D.position);
+                this.arModel.object3D.quaternion.copy(this.reticle.object3D.quaternion);
+                this.arModel.setAttribute('visible', true);
+                this.placed = true;
+                this.reticle.setAttribute('visible', false);
+                this.el.emit('ar-model-placed');
+
+                if (window.navigator.vibrate) window.navigator.vibrate(50);
+            },
+
+            onPointerDown: function (evt) {
+                if (!this.arMode || !this.placed) return;
+                if (evt.touches.length === 2) {
+                    this.initialDistance = Math.hypot(evt.touches[0].clientX - evt.touches[1].clientX, evt.touches[0].clientY - evt.touches[1].clientY);
+                    this.initialScale = this.arModel.object3D.scale.x;
+                    this.initialAngle = Math.atan2(evt.touches[0].clientY - evt.touches[1].clientY, evt.touches[0].clientX - evt.touches[1].clientX);
+                    this.initialRotationY = this.arModel.object3D.rotation.y;
+                } else if (evt.touches.length === 1) {
+                    this.isDragging = true;
+                    this.prevPos = { x: evt.touches[0].clientX, y: evt.touches[0].clientY };
+                }
+            },
+
+            onPointerMove: function (evt) {
+                if (!this.arMode || !this.placed) return;
+                if (evt.touches.length === 2) {
+                    evt.preventDefault();
+                    const dist = Math.hypot(evt.touches[0].clientX - evt.touches[1].clientX, evt.touches[0].clientY - evt.touches[1].clientY);
+                    const angle = Math.atan2(evt.touches[0].clientY - evt.touches[1].clientY, evt.touches[0].clientX - evt.touches[1].clientX);
+                    this.arModel.object3D.scale.setScalar(Math.max(0.1, Math.min(5.0, this.initialScale * (dist / this.initialDistance))));
+                    let deltaAngle = angle - this.initialAngle;
+                    this.arModel.object3D.rotation.y = this.initialRotationY - deltaAngle;
+                } else if (this.isDragging && evt.touches.length === 1) {
+                    evt.preventDefault();
+                    const dx = evt.touches[0].clientX - this.prevPos.x;
+                    const dy = evt.touches[0].clientY - this.prevPos.y;
+                    this.arModel.object3D.position.x += dx * 0.0015;
+                    this.arModel.object3D.position.z += dy * 0.0015;
+                    this.prevPos = { x: evt.touches[0].clientX, y: evt.touches[0].clientY };
+                }
+            },
+            onPointerUp: function () { this.isDragging = false; }
+        });
                             session.requestReferenceSpace('local').then((s) => { this.localSpace = s; });
                         }
                     }
