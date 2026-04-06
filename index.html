@@ -30,7 +30,7 @@
         .gesture-hint {
             background: rgba(255,255,255,0.1);
             padding: 12px; border-radius: 12px;
-            font-size: 14px !important; margin-bottom: 20px !important;
+            font-size: 13px !important; margin-bottom: 20px !important;
             text-align: left;
         }
         .instruction-btn {
@@ -70,12 +70,12 @@
 
         <div id="ar-instructions">
             <h3>Инструкция AR</h3>
-            <p>1. Медленно водите камерой, сканируя пол.<br>
+            <p>1. Медленно водите камерой для сканирования пола.<br>
                2. Наведите <b>голубой кружок</b> в нужное место и <b>тапните по нему</b>, чтобы закрепить экспонат.</p>
             <p class="gesture-hint">
-                <b>Управление после установки:</b><br>
-                👆 <b>1 палец:</b> Перемещение по полу<br>
-                ✌️ <b>2 пальца:</b> Вращение и масштаб
+                <b>Управление:</b><br>
+                • 👆 <b>1 палец:</b> перемещение по полу<br>
+                • ✌️ <b>2 пальца:</b> вращение и масштаб
             </p>
             <button class="instruction-btn" id="close-instr-btn">ПОНЯТНО</button>
         </div>
@@ -118,7 +118,6 @@
     <script>
         const instrWindow = document.getElementById('ar-instructions');
         
-        // Инструкция 1 раз за сессию браузера
         document.getElementById('close-instr-btn').addEventListener('click', () => {
             instrWindow.style.display = 'none';
             sessionStorage.setItem('ar_hint_shown', 'true');
@@ -148,16 +147,14 @@
             if (sceneEl) sceneEl.enterVR({ mode: 'immersive-ar' });
         });
         
-        // --- 1. ЖЕЛЕЗОБЕТОННОЕ AR УПРАВЛЕНИЕ ---
+        // --- 1. AR УПРАВЛЕНИЕ ---
         AFRAME.registerComponent('ar-placement', {
             init: function () {
                 this.reticle = document.getElementById('reticle');
                 this.arModel = document.getElementById('ar-model');
                 this.arMode = false; this.placed = false; this.hitTestSource = null;
-                
                 const sceneEl = this.el;
 
-                // Функция сброса: просто гасим флаг, НЕ ЗАПРАШИВАЕМ новый HitTestSource!
                 this.resetPlacement = () => {
                     this.placed = false;
                     if (this.arModel) this.arModel.setAttribute('visible', false);
@@ -165,24 +162,19 @@
 
                 sceneEl.addEventListener('ar-request-reset', this.resetPlacement);
                 sceneEl.addEventListener('figure-changed', () => {
-                    if (this.arMode) this.resetPlacement();
-                    else this.placed = false; 
+                    this.placed = false; 
+                    if (this.arMode && this.arModel) this.arModel.setAttribute('visible', false);
                 });
 
                 sceneEl.addEventListener('enter-vr', () => {
                     if (sceneEl.is('ar-mode')) {
                         this.arMode = true; this.placed = false;
                         document.body.classList.add('ar-mode');
-                        
-                        if (!sessionStorage.getItem('ar_hint_shown')) {
-                            instrWindow.style.display = 'block';
-                        }
+                        if (!sessionStorage.getItem('ar_hint_shown')) instrWindow.style.display = 'block';
                         
                         const session = sceneEl.renderer.xr.getSession();
                         if (session) {
                             session.addEventListener('select', () => this.onSelect());
-                            
-                            // ЗАПРАШИВАЕМ СКАНЕР ТОЛЬКО 1 РАЗ!
                             session.requestReferenceSpace('viewer').then((vs) => { 
                                 session.requestHitTestSource({ space: vs }).then((s) => { this.hitTestSource = s; });
                             });
@@ -194,17 +186,10 @@
                 sceneEl.addEventListener('exit-vr', () => {
                     this.arMode = false; this.placed = false;
                     document.body.classList.remove('ar-mode');
-                    
-                    // Жесткая очистка AR модели
                     if (this.arModel) this.arModel.setAttribute('visible', false);
                     if (this.reticle) this.reticle.setAttribute('visible', false);
                     instrWindow.style.display = 'none';
-
-                    // Очистка сканера, чтобы при новом входе AR запустился чисто
-                    if (this.hitTestSource) {
-                        try { this.hitTestSource.cancel(); } catch (e) {}
-                        this.hitTestSource = null;
-                    }
+                    if (this.hitTestSource) { this.hitTestSource.cancel(); this.hitTestSource = null; }
                 });
 
                 this.onPointerDown = this.onPointerDown.bind(this);
@@ -229,17 +214,18 @@
             },
 
             onSelect: function () {
-                // Если инструкция открыта - игнорируем тап по полу
                 if (instrWindow.style.display === 'block') return;
-                
                 if (!this.arMode || this.placed || !this.reticle.getAttribute('visible')) return;
+                
                 this.arModel.setAttribute('position', this.reticle.getAttribute('position'));
                 this.arModel.object3D.quaternion.copy(this.reticle.object3D.quaternion);
-                this.arModel.setAttribute('visible', true);
                 
+                // ПРИНУДИТЕЛЬНЫЙ СБРОС И ПОКАЗ
+                this.arModel.setAttribute('visible', true);
+                this.el.emit('ar-model-placed'); // сигнал для пересчета масштаба если нужно
+
                 this.placed = true; 
                 this.reticle.setAttribute('visible', false);
-                
                 if (window.navigator.vibrate) window.navigator.vibrate(50);
             },
 
@@ -264,15 +250,15 @@
                     const angle = Math.atan2(evt.touches[0].clientY - evt.touches[1].clientY, evt.touches[0].clientX - evt.touches[1].clientX);
                     this.arModel.object3D.scale.setScalar(Math.max(0.1, Math.min(5.0, this.initialScale * (dist / this.initialDistance))));
                     
-                    // Поворот в AR (Корректный)
+                    // Поворот в AR: В ту же сторону, что и пальцы
                     let deltaAngle = angle - this.initialAngle;
-                    this.arModel.setAttribute('rotation', { x: 0, y: this.initialRotationY - deltaAngle * (180 / Math.PI), z: 0 });
+                    this.arModel.setAttribute('rotation', { x: 0, y: this.initialRotationY + deltaAngle * (180 / Math.PI), z: 0 });
                 } else if (this.isDragging && evt.touches.length === 1) {
                     evt.preventDefault();
                     const dx = evt.touches[0].clientX - this.prevPos.x;
                     const dy = evt.touches[0].clientY - this.prevPos.y;
                     let pos = this.arModel.getAttribute('position');
-                    pos.x += dx * 0.002; pos.z += dy * 0.002;
+                    pos.x += dx * 0.0015; pos.z += dy * 0.0015;
                     this.arModel.setAttribute('position', pos);
                     this.prevPos = { x: evt.touches[0].clientX, y: evt.touches[0].clientY };
                 }
@@ -319,9 +305,8 @@
                     let cx = evt.touches ? evt.touches[0].clientX : evt.clientX;
                     let cy = evt.touches ? evt.touches[0].clientY : evt.clientY;
                     let rot = this.wrapper.getAttribute('rotation');
-                    
-                    // Поворот в галерее: ОРИГИНАЛЬНЫЙ НАДЕЖНЫЙ ПУТЬ
-                    let nx = Math.max(-70, Math.min(70, rot.x + (cy - this.prevPos.y) * Math.cos(rot.y * Math.PI / 180) * 0.22));
+                    // Вращение в галерее (нормальное)
+                    let nx = Math.max(-70, Math.min(70, rot.x + (cy - this.prevPos.y) * 0.22));
                     this.wrapper.setAttribute('rotation', { x: nx, y: rot.y + (cx - this.prevPos.x) * 0.22, z: 0 });
                     this.prevPos = { x: cx, y: cy };
                 }
@@ -339,7 +324,9 @@
         AFRAME.registerComponent('ar-model-sync', {
             init: function () {
                 this.inner = document.getElementById('ar-model-inner');
+                this.parent = document.getElementById('ar-model');
                 this.el.addEventListener('figure-changed', (e) => { this.curr = e.detail.figure; this.update(); });
+                this.el.addEventListener('ar-model-placed', () => this.scale()); // пересчет при установке
                 this.update();
             },
             update: function () {
@@ -352,11 +339,14 @@
             },
             scale: function () {
                 const obj = this.inner.object3D;
-                obj.rotation.set(0,0,0); obj.scale.setScalar(1); obj.position.set(0,0,0); obj.updateMatrixWorld(true);
+                if (!obj) return;
+                obj.rotation.set(0,0,0); obj.scale.setScalar(1); obj.position.set(0,0,0);
+                obj.updateMatrixWorld(true);
                 const box = new THREE.Box3().setFromObject(obj);
                 const size = new THREE.Vector3(); box.getSize(size);
-                if (Math.max(size.x, size.y, size.z) === 0) return;
-                obj.scale.setScalar(0.20 / Math.max(size.x, size.y, size.z));
+                const maxD = Math.max(size.x, size.y, size.z);
+                if (maxD === 0) return;
+                obj.scale.setScalar(0.20 / maxD);
                 obj.updateMatrixWorld(true);
                 const b2 = new THREE.Box3().setFromObject(obj);
                 const c = new THREE.Vector3(); b2.getCenter(c);
@@ -367,7 +357,15 @@
         const model = document.getElementById('main-model');
         const wrapper = document.getElementById('model-wrapper');
         const loading = document.getElementById('loading');
+        const desc = document.getElementById('description');
         let currentFigure = 1;
+
+        const figureNames = {
+            1: "«Ненецкая девушка»", 2: "«Эвенкийка, вышивающая шапку»", 3: "«Женщина с собакой»", 4: "«Эвенкийская семья»",
+            5: "«Эвенкийский мужчина»", 6: "«Русская пара в летних нарядах»", 7: "«Бурятский мужчина»", 8: "«Бурятская женщина»",
+            9: "«Тофаларский охотник»", 10: "«Тофаларская охотница»", 11: "«Бурятский мужчина»", 12: "«Тофаларская женщина с младенцем в колыбели»",
+            13: "«Бурятский мужчина»", 14: "«Эвенкийская женщина»", 15: "«Эвенкийская женщина, вышивающая рукавицы»", 16: "«Бурятский мужчина»"
+        };
 
         function process() {
             const mesh = model.getObject3D('mesh');
@@ -390,7 +388,7 @@
 
         function load(num) {
             loading.style.display = 'flex';
-            document.getElementById('description').textContent = {1: "Тофаларские охотники", 2: "Тофаларский мальчик с собакой", 3: "Тофаларская девушка", 4: "Тофаларская женщина", 5: "Тофаларские женщины с младенцем", 6: "Эвенкийские женщины", 7: "Эвенкийская вышивальщица", 8: "Эвенкийки вышивают", 9: "Эвенкийская пара", 10: "Эвенкийская семья", 11: "Эвенкийка с ребенком", 12: "Ненецкая женщина", 13: "Ненец - охотник", 14: "Ненецкая девушка", 15: "Ненецкая женщина в парке", 16: "Ненецкая женщина", 17: "Группа бурят", 18: "Бурятские мужчины"}[num];
+            desc.textContent = figureNames[num];
             model.removeAttribute('gltf-model');
             setTimeout(() => {
                 model.setAttribute('gltf-model', `models/Figure_${num}.glb`);
@@ -398,8 +396,8 @@
             }, 20);
         }
 
-        document.getElementById('prev-btn').onclick = () => { currentFigure = (currentFigure > 1) ? currentFigure - 1 : 18; load(currentFigure); };
-        document.getElementById('next-btn').onclick = () => { currentFigure = (currentFigure < 18) ? currentFigure + 1 : 1; load(currentFigure); };
+        document.getElementById('prev-btn').onclick = () => { currentFigure = (currentFigure > 1) ? currentFigure - 1 : 16; load(currentFigure); };
+        document.getElementById('next-btn').onclick = () => { currentFigure = (currentFigure < 16) ? currentFigure + 1 : 1; load(currentFigure); };
         load(1);
 
         document.getElementById('overlay').addEventListener('beforexrselect', (e) => { 
