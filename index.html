@@ -277,25 +277,6 @@
             },
             onPointerUp: function () { this.isDragging = false; }
         });
-                            session.requestReferenceSpace('local').then((s) => { this.localSpace = s; });
-                        }
-                    }
-                });
-
-                sceneEl.addEventListener('exit-vr', () => {
-                    this.arMode = false; this.placed = false;
-                    document.body.classList.remove('ar-mode');
-                    if (this.arModel) this.arModel.setAttribute('visible', false);
-                    if (this.hitTestSource) { this.hitTestSource.cancel(); this.hitTestSource = null; }
-                });
-
-                this.onPointerDown = this.onPointerDown.bind(this);
-                this.onPointerUp = this.onPointerUp.bind(this);
-                this.onPointerMove = this.onPointerMove.bind(this);
-                window.addEventListener('touchstart', this.onPointerDown, { passive: false });
-                window.addEventListener('touchend', this.onPointerUp);
-                window.addEventListener('touchmove', this.onPointerMove, { passive: false });
-            },
 
             tick: function () {
                 if (!this.arMode || !this.hitTestSource || this.placed || !this.localSpace) return;
