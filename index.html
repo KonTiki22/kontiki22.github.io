@@ -158,10 +158,14 @@
                 
                 const sceneEl = this.el;
 
-                // Функция сброса состояния (важно для переключения моделей)
                 this.resetPlacement = () => {
                     this.placed = false;
-                    if (this.arModel) this.arModel.setAttribute('visible', 'false');
+                    if (this.arModel) {
+                        this.arModel.setAttribute('visible', 'false');
+                        this.arModel.setAttribute('position', {x:0, y:0, z:0});
+                        this.arModel.setAttribute('rotation', {x:0, y:0, z:0});
+                        this.arModel.object3D.scale.set(1,1,1);
+                    }
                     const session = sceneEl.renderer.xr.getSession();
                     if (session && this.viewerSpace) {
                         session.requestHitTestSource({ space: this.viewerSpace }).then((s) => { this.hitTestSource = s; });
@@ -225,11 +229,13 @@
             },
 
             onSelect: function () {
-                if (!this.arMode || this.placed || !this.reticle.getAttribute('visible')) return;
+                if (!this.arMode || !this.placed || !this.reticle.getAttribute('visible')) return;
                 this.arModel.setAttribute('position', this.reticle.getAttribute('position'));
                 this.arModel.object3D.quaternion.copy(this.reticle.object3D.quaternion);
                 this.arModel.setAttribute('visible', 'true');
-                this.placed = true; this.reticle.setAttribute('visible', 'false');
+                this.placed = true;
+                this.reticle.setAttribute('visible', 'false');
+                this.hitTestSource = null;
                 if (window.navigator.vibrate) window.navigator.vibrate(50);
             },
 
@@ -322,10 +328,10 @@
             }
         });
 
-        // --- 3. СИНХРОНИЗАЦИЯ МОДЕЛЕЙ ---
         AFRAME.registerComponent('ar-model-sync', {
             init: function () {
                 this.inner = document.getElementById('ar-model-inner');
+                this.parent = document.getElementById('ar-model');
                 this.el.addEventListener('figure-changed', (e) => { this.curr = e.detail.figure; this.update(); });
                 this.update();
             },
@@ -339,6 +345,7 @@
             },
             scale: function () {
                 const obj = this.inner.object3D;
+                if (!obj) return;
                 obj.rotation.set(0,0,0); obj.scale.setScalar(1); obj.position.set(0,0,0); obj.updateMatrixWorld(true);
                 const box = new THREE.Box3().setFromObject(obj);
                 const size = new THREE.Vector3(); box.getSize(size);
@@ -348,6 +355,12 @@
                 const b2 = new THREE.Box3().setFromObject(obj);
                 const c = new THREE.Vector3(); b2.getCenter(c);
                 obj.position.set(-c.x, -b2.min.y, -c.z);
+                if (this.parent) {
+                    this.parent.setAttribute('position', {x:0, y:0, z:0});
+                    this.parent.setAttribute('rotation', {x:0, y:0, z:0});
+                    this.parent.object3D.scale.set(1,1,1);
+                    this.parent.setAttribute('visible', 'false');
+                }
             }
         });
 
