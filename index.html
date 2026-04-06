@@ -235,7 +235,6 @@
                 this.arModel.setAttribute('visible', 'true');
                 this.placed = true;
                 this.reticle.setAttribute('visible', 'false');
-                this.hitTestSource = null;
                 if (window.navigator.vibrate) window.navigator.vibrate(50);
             },
 
@@ -331,7 +330,6 @@
         AFRAME.registerComponent('ar-model-sync', {
             init: function () {
                 this.inner = document.getElementById('ar-model-inner');
-                this.parent = document.getElementById('ar-model');
                 this.el.addEventListener('figure-changed', (e) => { this.curr = e.detail.figure; this.update(); });
                 this.update();
             },
@@ -355,12 +353,6 @@
                 const b2 = new THREE.Box3().setFromObject(obj);
                 const c = new THREE.Vector3(); b2.getCenter(c);
                 obj.position.set(-c.x, -b2.min.y, -c.z);
-                if (this.parent) {
-                    this.parent.setAttribute('position', {x:0, y:0, z:0});
-                    this.parent.setAttribute('rotation', {x:0, y:0, z:0});
-                    this.parent.object3D.scale.set(1,1,1);
-                    this.parent.setAttribute('visible', 'false');
-                }
             }
         });
 
