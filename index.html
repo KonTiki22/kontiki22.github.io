@@ -165,6 +165,11 @@
                         this.arModel.object3D.scale.setScalar(1);
                         this.arModel.object3D.rotation.set(0, 0, 0);
                     }
+                    const inner = document.getElementById('ar-model-inner');
+                    if (inner) {
+                        inner.setAttribute('visible', false);
+                        inner.removeAttribute('gltf-model');
+                    }
                     console.log("AR State Reset");
                 };
 
@@ -176,6 +181,10 @@
                         this.arMode = true; this.placed = false;
                         document.body.classList.add('ar-mode');
                         if (!sessionStorage.getItem('ar_hint_shown')) instrWindow.style.display = 'block';
+
+                        sceneEl.dispatchEvent(new CustomEvent('figure-changed', {
+                            detail: { figure: window.currentFigure || 1 }
+                        }));
 
                         const session = sceneEl.renderer.xr.getSession();
                         if (session) {
@@ -397,7 +406,7 @@
         const model = document.getElementById('main-model');
         const wrapper = document.getElementById('model-wrapper');
         const loading = document.getElementById('loading');
-        let currentFigure = 1;
+        window.currentFigure = 1;
 
         function process() {
             const mesh = model.getObject3D('mesh');
@@ -428,9 +437,9 @@
             }, 20);
         }
 
-        document.getElementById('prev-btn').onclick = () => { currentFigure = (currentFigure > 1) ? currentFigure - 1 : 16; load(currentFigure); };
-        document.getElementById('next-btn').onclick = () => { currentFigure = (currentFigure < 16) ? currentFigure + 1 : 1; load(currentFigure); };
-        load(1);
+        document.getElementById('prev-btn').onclick = () => { window.currentFigure = (window.currentFigure > 1) ? window.currentFigure - 1 : 16; load(window.currentFigure); };
+        document.getElementById('next-btn').onclick = () => { window.currentFigure = (window.currentFigure < 16) ? window.currentFigure + 1 : 1; load(window.currentFigure); };
+        load(window.currentFigure);
 
         document.getElementById('overlay').addEventListener('beforexrselect', (e) => { 
             if (e.target.closest('button') || e.target.closest('#ar-instructions')) e.preventDefault(); 
