@@ -1,41 +1,46 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap');
+
 body {
     margin: 0;
     overflow: hidden;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     background-color: #111;
     touch-action: none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
-
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&display=swap');
 
 .header-title {
     position: absolute;
-    top: 15px;
+    top: 16px;
     left: 50%;
     transform: translateX(-50%);
     color: #fff;
-    font-size: 20px;
+    font-size: 17px;
     font-weight: 600;
     font-family: 'Playfair Display', Georgia, serif;
-    text-shadow: 2px 2px 6px rgba(0,0,0,0.9);
+    text-shadow: 0 2px 8px rgba(0,0,0,0.5);
     z-index: 100;
     text-align: center;
-    letter-spacing: 1px;
-    padding: 10px 18px;
-    background: rgba(0,0,0,0.6);
-    border-radius: 12px;
-    backdrop-filter: blur(6px);
+    letter-spacing: 0.5px;
+    padding: 12px 22px;
+    background: rgba(0,0,0,0.5);
+    border-radius: 14px;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     max-width: 90%;
-    border: 1px solid rgba(255,255,255,0.15);
-    line-height: 1.3;
+    border: 1px solid rgba(255,255,255,0.08);
+    line-height: 1.35;
     pointer-events: none;
+    white-space: nowrap;
 }
 
 @media (min-width: 768px) {
     .header-title {
-        font-size: 28px;
-        padding: 14px 24px;
-        top: 20px;
+        font-size: 24px;
+        padding: 16px 28px;
+        top: 24px;
+        letter-spacing: 0.8px;
     }
 }
 
@@ -48,46 +53,53 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0 15px;
+    padding: 0 12px;
     pointer-events: none;
     z-index: 100;
 }
 
 .arrow-btn {
     pointer-events: auto;
-    padding: 12px 18px;
     cursor: pointer;
-    background: rgba(30, 30, 40, 0.85);
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(255,255,255,0.3);
+    background: rgba(15, 15, 20, 0.75);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.1);
     border-radius: 50%;
-    font-weight: bold;
-    font-size: 20px;
-    transition: all 0.2s ease;
-    width: 48px;
-    height: 48px;
+    font-size: 22px;
+    font-weight: 700;
+    font-family: 'Inter', sans-serif;
+    transition: all 0.15s ease;
+    width: 52px;
+    height: 52px;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: white;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    color: rgba(255,255,255,0.9);
+    box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+    line-height: 1;
+    padding: 0;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .arrow-btn:active {
-    transform: scale(0.95);
-    background: rgba(80, 80, 100, 0.9);
+    transform: scale(0.92);
+    background: rgba(76, 195, 217, 0.3);
+    border-color: rgba(76, 195, 217, 0.5);
 }
 
 @media (min-width: 768px) {
-    #arrows { padding: 0 30px; }
+    #arrows { padding: 0 24px; }
     .arrow-btn {
-        width: 60px;
-        height: 60px;
-        font-size: 28px;
+        width: 56px;
+        height: 56px;
+        font-size: 24px;
     }
     .arrow-btn:hover {
-        background: rgba(255,255,255,0.9);
-        color: #111;
+        background: rgba(76, 195, 217, 0.2);
+        border-color: rgba(76, 195, 217, 0.4);
+        color: #fff;
         transform: scale(1.05);
     }
 }
@@ -98,27 +110,30 @@ body {
     left: 50%;
     transform: translate(-50%, -50%);
     color: #fff;
-    font-size: 18px;
-    font-weight: bold;
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: 0.3px;
     z-index: 200;
-    background: rgba(0, 0, 0, 0.85);
-    padding: 15px 25px;
+    background: rgba(0, 0, 0, 0.8);
+    padding: 18px 28px;
     border-radius: 16px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 12px;
-    backdrop-filter: blur(10px);
+    gap: 14px;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     pointer-events: none;
+    border: 1px solid rgba(255,255,255,0.06);
 }
 
 .spinner {
-    width: 40px;
-    height: 40px;
-    border: 4px solid rgba(255, 255, 255, 0.3);
-    border-top: 4px solid #4CC3D9;
+    width: 32px;
+    height: 32px;
+    border: 3px solid rgba(255, 255, 255, 0.15);
+    border-top: 3px solid #4CC3D9;
     border-radius: 50%;
-    animation: spin 1s linear infinite;
+    animation: spin 0.8s linear infinite;
 }
 
 @keyframes spin {
@@ -128,34 +143,37 @@ body {
 
 #description {
     position: absolute;
-    bottom: 80px;
+    bottom: 75px;
     left: 50%;
     transform: translateX(-50%);
-    color: #fff;
-    font-size: 14px;
+    color: rgba(255,255,255,0.9);
+    font-size: 13px;
     font-weight: 500;
     text-align: center;
-    background: rgba(0, 0, 0, 0.7);
-    backdrop-filter: blur(8px);
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     padding: 10px 20px;
-    border-radius: 40px;
+    border-radius: 30px;
     z-index: 100;
     max-width: 85%;
-    line-height: 1.4;
+    line-height: 1.5;
     pointer-events: none;
+    letter-spacing: 0.2px;
+    border: 1px solid rgba(255,255,255,0.06);
+    font-style: italic;
     white-space: nowrap;
-    overflow-x: auto;
-    white-space: normal;
-    font-weight: 500;
-    letter-spacing: 0.3px;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 @media (min-width: 768px) {
     #description {
-        font-size: 18px;
-        padding: 12px 28px;
+        font-size: 16px;
+        padding: 12px 26px;
         bottom: 100px;
-        max-width: 70%;
+        max-width: 65%;
+        border-radius: 40px;
     }
 }
 
@@ -163,44 +181,46 @@ body {
     position: absolute;
     bottom: 15px;
     right: 15px;
-    background: linear-gradient(135deg, #0078ff, #004ecc);
+    background: rgba(0, 120, 255, 0.8);
     color: white;
-    border: 1px solid rgba(255,255,255,0.3);
+    border: 1px solid rgba(255,255,255,0.15);
     border-radius: 50%;
-    width: 50px;
-    height: 50px;
-    font-size: 12px;
-    font-weight: bold;
-    font-family: inherit;
+    width: 48px;
+    height: 48px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+    letter-spacing: 1px;
     z-index: 150;
     cursor: pointer;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    backdrop-filter: blur(4px);
-    transition: transform 0.2s, background 0.2s;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    transition: all 0.15s ease;
     display: flex;
     align-items: center;
     justify-content: center;
     pointer-events: auto;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .custom-ar-button:active {
     transform: scale(0.92);
-    background: linear-gradient(135deg, #0066dd, #003d99);
+    background: rgba(0, 100, 220, 0.9);
 }
 
 @media (min-width: 768px) {
     .custom-ar-button {
         bottom: 20px;
         right: 20px;
-        width: 60px;
-        height: 60px;
+        width: 56px;
+        height: 56px;
         font-size: 14px;
     }
     .custom-ar-button:hover {
         transform: scale(1.05);
-        background: linear-gradient(135deg, #1a86ff, #0059dd);
+        background: rgba(0, 120, 255, 0.9);
     }
 }
 
@@ -227,26 +247,29 @@ body.ar-mode .custom-ar-button {
     bottom: 5px;
     left: 10px;
     right: 10px;
-    background: rgba(0,0,0,0.7);
-    color: #ffaa66;
-    padding: 8px 12px;
-    border-radius: 8px;
-    font-size: 11px;
+    background: rgba(0,0,0,0.6);
+    color: rgba(255,170,100,0.9);
+    padding: 8px 14px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 500;
     text-align: center;
     z-index: 160;
-    backdrop-filter: blur(6px);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     pointer-events: none;
-    font-weight: 500;
     display: none;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    letter-spacing: 0.2px;
+    border: 1px solid rgba(255,170,100,0.15);
 }
 
 @media (min-width: 768px) {
     .ar-unsupported-msg {
-        font-size: 12px;
+        font-size: 13px;
         bottom: 8px;
-        padding: 10px 15px;
+        padding: 10px 16px;
     }
 }
