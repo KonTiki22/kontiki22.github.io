@@ -158,19 +158,36 @@
                 this.localSpace = null;
                 const sceneEl = this.el;
 
+                if (this.arModel) {
+                    this.arModel.object3D.matrixAutoUpdate = true;
+                    this.arModel.object3D.updateMatrixWorld(true);
+                }
+
                 this.resetPlacement = () => {
                     this.placed = false;
+
                     if (this.arModel) {
                         this.arModel.setAttribute('visible', false);
-                        this.arModel.object3D.scale.setScalar(1);
-                        this.arModel.object3D.rotation.set(0, 0, 0);
+
+                        const obj = this.arModel.object3D;
+                        obj.position.set(0, 0, 0);
+                        obj.rotation.set(0, 0, 0);
+                        obj.quaternion.identity();
+                        obj.scale.setScalar(1);
+                        obj.updateMatrix();
+                        obj.updateMatrixWorld(true);
+
+                        const inner = document.getElementById('ar-model-inner');
+                        if (inner && inner.object3D) {
+                            inner.object3D.position.set(0, 0, 0);
+                            inner.object3D.rotation.set(0, 0, 0);
+                            inner.object3D.quaternion.identity();
+                            inner.object3D.scale.setScalar(1);
+                            inner.object3D.updateMatrix();
+                            inner.setAttribute('visible', false);
+                        }
                     }
-                    const inner = document.getElementById('ar-model-inner');
-                    if (inner) {
-                        inner.setAttribute('visible', false);
-                        inner.removeAttribute('gltf-model');
-                    }
-                    console.log("AR State Reset");
+                    console.log("AR State Fully Reset");
                 };
 
                 sceneEl.addEventListener('ar-request-reset', this.resetPlacement);
@@ -226,7 +243,7 @@
                     const results = frame.getHitTestResults(this.hitTestSource);
                     if (results.length > 0) {
                         const pose = results[0].getPose(this.localSpace);
-                        if (pose) {
+                        if (pose && pose.transform) {
                             this.reticle.setAttribute('visible', true);
                             this.reticle.setAttribute('position', pose.transform.position);
                             this.reticle.object3D.quaternion.copy(pose.transform.orientation);
@@ -235,7 +252,7 @@
                         this.reticle.setAttribute('visible', false);
                     }
                 } catch (e) {
-                    console.warn("XR HitTest error, ignoring frame", e);
+                    console.warn("XR HitTest error", e);
                 }
             },
 
@@ -243,8 +260,13 @@
                 if (instrWindow.style.display === 'block') return;
                 if (!this.arMode || this.placed || !this.reticle.getAttribute('visible')) return;
 
-                this.arModel.object3D.position.copy(this.reticle.object3D.position);
-                this.arModel.object3D.quaternion.copy(this.reticle.object3D.quaternion);
+                const arObj = this.arModel.object3D;
+                arObj.position.set(0, 0, 0);
+                arObj.quaternion.identity();
+
+                const reticlePos = this.reticle.object3D.position;
+                arObj.position.copy(reticlePos);
+
                 this.arModel.setAttribute('visible', true);
                 this.placed = true;
                 this.reticle.setAttribute('visible', false);
@@ -354,10 +376,23 @@
             },
             update: function () {
                 if (!this.inner) return;
+
+                this.inner.setAttribute('visible', false);
                 this.inner.removeAttribute('gltf-model');
+
+                if (this.inner.object3D) {
+                    this.inner.object3D.position.set(0, 0, 0);
+                    this.inner.object3D.rotation.set(0, 0, 0);
+                    this.inner.object3D.quaternion.identity();
+                    this.inner.object3D.scale.setScalar(1);
+                }
+
                 setTimeout(() => {
                     this.inner.setAttribute('gltf-model', `models/Figure_${this.curr || 1}.glb`);
-                    this.inner.addEventListener('model-loaded', () => this.scale(), { once: true });
+                    this.inner.addEventListener('model-loaded', () => {
+                        this.inner.setAttribute('visible', true);
+                        this.scale();
+                    }, { once: true });
                 }, 50);
             },
             scale: function () {
