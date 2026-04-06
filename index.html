@@ -29,12 +29,11 @@
         </div>
     </div>
 
-    <!-- ТЕПЕРЬ ТЕГ ЧИСТЫЙ И БЕЗ ОШИБОК -->
+    <!-- Убрали багованный ar-hit-test из сцены! -->
     <a-scene
         renderer="colorManagement: true; antialias: true; physicallyCorrectLights: true; logarithmicDepthBuffer: true;"
         shadow="type: pcfsoft"
         webxr="requiredFeatures: hit-test; optionalFeatures: dom-overlay; overlayElement: #overlay; referenceSpaceType: local;"
-        ar-hit-test="target: #ar-model;"
         ar-placement
         log-webxr
         ar-model-sync
@@ -54,6 +53,11 @@
         </a-entity>
         
         <a-plane rotation="-90 0 0" position="0 0 0" width="20" height="20" color="#111" opacity="0.3" shadow="receive: true" hide-on-enter-ar></a-plane>
+
+        <!-- Железобетонный ручной прицел -->
+        <a-entity id="reticle" visible="false">
+            <a-ring rotation="-90 0 0" radius-inner="0.04" radius-outer="0.06" color="#4CC3D9" material="shader: flat; opacity: 0.8"></a-ring>
+        </a-entity>
 
         <a-entity id="ar-model" visible="false">
             <a-entity id="ar-model-inner" gltf-model="models/Figure_1.glb" shadow="cast: true; receive: true"></a-entity>
@@ -97,18 +101,20 @@
                 await sceneEl.enterVR({ mode: 'immersive-ar' });
             } catch (err) {
                 console.error(err);
-                alert('Не удалось запустить AR');
             }
         }
         arButton.addEventListener('click', enterAR);
         
+        // --- 1. АБСОЛЮТНО НАДЕЖНОЕ РАЗМЕЩЕНИЕ ЧЕРЕЗ NATIVE WEBXR API ---
         AFRAME.registerComponent('ar-placement', {
             init: function () {
-                const sceneEl = this.el.sceneEl;
-                const arModel = document.getElementById('ar-model');
+                this.reticle = document.getElementById('reticle');
+                this.arModel = document.getElementById('ar-model');
                 
-                this.placed = false;
                 this.arMode = false;
+                this.placed = false;
+                this.hitTestSource = null;
+                this.localSpace = null;
 
                 this.isDragging = false;
                 this.previousPos = { x: 0, y: 0 };
@@ -117,36 +123,50 @@
                 this.initialAngle = 0;
                 this.initialRotationY = 0;
 
+                this.onSelect = this.onSelect.bind(this);
                 this.onPointerDown = this.onPointerDown.bind(this);
                 this.onPointerUp = this.onPointerUp.bind(this);
                 this.onPointerMove = this.onPointerMove.bind(this);
 
-                sceneEl.addEventListener('ar-hit-test-select', () => {
-                    if (!this.placed) {
-                        this.placed = true;
-                        console.log("Модель установлена родным компонентом A-Frame!");
-                        if (window.navigator.vibrate) window.navigator.vibrate(50);
-                        
-                        setTimeout(() => {
-                            sceneEl.removeAttribute('ar-hit-test');
-                        }, 100);
-                    }
-                });
+                const sceneEl = this.el;
 
                 sceneEl.addEventListener('enter-vr', () => {
                     if (sceneEl.is('ar-mode')) {
                         this.arMode = true;
                         this.placed = false;
                         document.body.classList.add('ar-mode');
-                        sceneEl.setAttribute('ar-hit-test', 'target: #ar-model;');
+                        
+                        if (this.reticle) this.reticle.setAttribute('visible', 'false');
+                        if (this.arModel) this.arModel.setAttribute('visible', 'false');
+
+                        // Запускаем нативный поиск поверхностей
+                        const session = sceneEl.renderer.xr.getSession();
+                        if (session) {
+                            session.addEventListener('select', this.onSelect);
+                            
+                            session.requestReferenceSpace('viewer').then((viewerSpace) => {
+                                session.requestHitTestSource({ space: viewerSpace }).then((source) => {
+                                    this.hitTestSource = source;
+                                });
+                            });
+                            
+                            session.requestReferenceSpace('local').then((space) => {
+                                this.localSpace = space;
+                            });
+                        }
                     }
                 });
 
                 sceneEl.addEventListener('exit-vr', () => {
                     this.arMode = false;
                     this.placed = false;
+                    this.hitTestSource = null;
                     document.body.classList.remove('ar-mode');
-                    if (arModel) arModel.setAttribute('visible', false);
+                    if (this.reticle) this.reticle.setAttribute('visible', 'false');
+                    if (this.arModel) this.arModel.setAttribute('visible', 'false');
+                    
+                    const session = sceneEl.renderer.xr?.getSession();
+                    if (session) session.removeEventListener('select', this.onSelect);
                 });
 
                 window.addEventListener('touchstart', this.onPointerDown, { passive: false });
@@ -154,16 +174,54 @@
                 window.addEventListener('touchmove', this.onPointerMove, { passive: false });
             },
 
+            // Native hit-test loop
+            tick: function () {
+                if (!this.arMode || !this.hitTestSource || this.placed || !this.localSpace) return;
+
+                const frame = this.el.sceneEl.frame;
+                if (!frame) return;
+
+                const hitTestResults = frame.getHitTestResults(this.hitTestSource);
+                if (hitTestResults.length > 0) {
+                    const hit = hitTestResults[0];
+                    const pose = hit.getPose(this.localSpace);
+                    
+                    this.reticle.setAttribute('visible', 'true');
+                    this.reticle.setAttribute('position', pose.transform.position);
+                    this.reticle.object3D.quaternion.copy(pose.transform.orientation);
+                } else {
+                    this.reticle.setAttribute('visible', 'false');
+                }
+            },
+
+            // Native tap
+            onSelect: function () {
+                if (!this.arMode || this.placed || !this.reticle.getAttribute('visible')) return;
+                
+                const pos = this.reticle.getAttribute('position');
+                const rot = this.reticle.object3D.quaternion;
+                
+                this.arModel.setAttribute('position', pos);
+                this.arModel.object3D.quaternion.copy(rot);
+                this.arModel.setAttribute('visible', 'true');
+                
+                this.placed = true;
+                this.reticle.setAttribute('visible', 'false');
+                this.hitTestSource = null; // Отключаем сканирование пола
+                
+                if (window.navigator.vibrate) window.navigator.vibrate(50);
+            },
+
+            // Жесты (работают только после размещения)
             onPointerDown: function (evt) {
                 if (!this.arMode || !this.placed) return;
-                const arModel = document.getElementById('ar-model');
                 if (evt.touches.length === 2) {
                     const dx = evt.touches[0].clientX - evt.touches[1].clientX;
                     const dy = evt.touches[0].clientY - evt.touches[1].clientY;
                     this.initialDistance = Math.hypot(dx, dy);
-                    this.initialScale = arModel.object3D.scale.x;
+                    this.initialScale = this.arModel.object3D.scale.x;
                     this.initialAngle = Math.atan2(dy, dx);
-                    const rot = arModel.getAttribute('rotation');
+                    const rot = this.arModel.getAttribute('rotation');
                     this.initialRotationY = rot.y;
                 } else if (evt.touches.length === 1) {
                     this.isDragging = true;
@@ -177,8 +235,6 @@
 
             onPointerMove: function (evt) {
                 if (!this.arMode || !this.placed) return;
-                const arModel = document.getElementById('ar-model');
-
                 if (evt.touches.length === 2) {
                     evt.preventDefault();
                     const dx = evt.touches[0].clientX - evt.touches[1].clientX;
@@ -188,10 +244,10 @@
 
                     let scale = this.initialScale * (currentDistance / this.initialDistance);
                     scale = Math.max(0.1, Math.min(5.0, scale));
-                    arModel.object3D.scale.set(scale, scale, scale);
+                    this.arModel.object3D.scale.set(scale, scale, scale);
 
                     let deltaAngle = currentAngle - this.initialAngle;
-                    arModel.setAttribute('rotation', { x: 0, y: this.initialRotationY + deltaAngle * (180 / Math.PI), z: 0 });
+                    this.arModel.setAttribute('rotation', { x: 0, y: this.initialRotationY + deltaAngle * (180 / Math.PI), z: 0 });
                 }
                 else if (this.isDragging && evt.touches.length === 1) {
                     evt.preventDefault();
@@ -200,10 +256,10 @@
                     const deltaX = clientX - this.previousPos.x;
                     const deltaY = clientY - this.previousPos.y;
 
-                    let pos = arModel.getAttribute('position');
+                    let pos = this.arModel.getAttribute('position');
                     pos.x += deltaX * 0.002;
                     pos.z += deltaY * 0.002;
-                    arModel.setAttribute('position', pos);
+                    this.arModel.setAttribute('position', pos);
                     this.previousPos = { x: clientX, y: clientY };
                 }
             }
@@ -249,7 +305,7 @@
                 const maxDim = Math.max(size.x, size.y, size.z);
                 if (maxDim === 0 || isNaN(maxDim)) return;
                 
-                const TARGET_AR_SIZE = 0.15; // 15 сантиметров высота фигурки в AR
+                const TARGET_AR_SIZE = 0.20; // 20 см - чтобы фигурку было чётко видно
                 const scaleFactor = TARGET_AR_SIZE / maxDim;
                 object.scale.set(scaleFactor, scaleFactor, scaleFactor);
                 object.updateMatrixWorld(true);
@@ -264,6 +320,7 @@
             }
         });
 
+        // 3D галерея (Без изменений - вращение и зум)
         AFRAME.registerComponent('gallery-controls', {
             init: function () {
                 this.wrapper = document.getElementById('model-wrapper');
@@ -395,6 +452,7 @@
 
         document.body.addEventListener('contextmenu', (e) => e.preventDefault());
 
+        // Защита от перехвата тапа интерфейсом, но с пропуском тапа по экрану в AR
         const overlay = document.getElementById('overlay');
         if (overlay) {
             overlay.addEventListener('beforexrselect', (e) => {
