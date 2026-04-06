@@ -30,12 +30,13 @@
         .gesture-hint {
             background: rgba(255,255,255,0.1);
             padding: 12px; border-radius: 12px;
-            font-size: 13px !important; margin-bottom: 20px !important;
+            font-size: 14px !important; margin-bottom: 20px !important;
+            text-align: left;
         }
         .instruction-btn {
             background: #4CC3D9; color: white; border: none;
             padding: 12px; border-radius: 12px; font-weight: bold;
-            width: 100%; cursor: pointer;
+            width: 100%; cursor: pointer; text-transform: uppercase;
         }
         #ar-ui { display: none; position: absolute; bottom: 25px; left: 0; right: 0; pointer-events: none; z-index: 200; }
         body.ar-mode #ar-ui { display: block; }
@@ -68,13 +69,13 @@
         <div id="ar-unsupported-msg" class="ar-unsupported-msg">⚠️ WebXR AR не поддерживается</div>
 
         <div id="ar-instructions">
-            <h3>Подготовка к AR</h3>
-            <p>1. Медленно сканируйте пол камерой.<br>
-               2. Наведите <b>синий кружок</b> в нужное место на полу и <b>тапните по нему</b>, чтобы закрепить экспонат.</p>
+            <h3>Инструкция AR</h3>
+            <p>1. Медленно водите камерой, сканируя пол.<br>
+               2. Наведите <b>голубой кружок</b> в нужное место и <b>тапните по нему</b>, чтобы закрепить экспонат.</p>
             <p class="gesture-hint">
-                <b>Управление:</b><br>
-                • 1 палец: перемещение экспоната<br>
-                • 2 пальца: вращение и масштаб
+                <b>Управление после установки:</b><br>
+                👆 <b>1 палец:</b> Перемещение по полу<br>
+                ✌️ <b>2 пальца:</b> Вращение и масштаб
             </p>
             <button class="instruction-btn" id="close-instr-btn">ПОНЯТНО</button>
         </div>
@@ -98,13 +99,11 @@
         <a-entity light="type: ambient; intensity: 0.9;"></a-entity>
         <a-entity id="main-light" position="3 5 4" light="type: directional; intensity: 1.6; castShadow: true; shadowBias: -0.0005; shadowMapHeight: 2048; shadowMapWidth: 2048; shadowCameraLeft: -4; shadowCameraRight: 4; shadowCameraTop: 4; shadowCameraBottom: -4;"></a-entity>
 
-        <!-- Галерея -->
         <a-entity id="model-wrapper" position="0 0 0" hide-on-enter-ar>
             <a-entity id="main-model" gltf-model="models/Figure_1.glb" shadow="cast: true; receive: true"></a-entity>
         </a-entity>
         <a-plane rotation="-90 0 0" position="0 0 0" width="20" height="20" color="#111" opacity="0.3" shadow="receive: true" hide-on-enter-ar></a-plane>
 
-        <!-- AR Объекты -->
         <a-entity id="reticle" visible="false">
             <a-ring rotation="-90 0 0" radius-inner="0.04" radius-outer="0.06" color="#4CC3D9" material="shader: flat; opacity: 0.8"></a-ring>
         </a-entity>
@@ -119,7 +118,7 @@
     <script>
         const instrWindow = document.getElementById('ar-instructions');
         
-        // Инструкция показывается только ОДИН раз за запуск (до обновления страницы)
+        // Инструкция 1 раз за сессию браузера
         document.getElementById('close-instr-btn').addEventListener('click', () => {
             instrWindow.style.display = 'none';
             sessionStorage.setItem('ar_hint_shown', 'true');
@@ -149,7 +148,7 @@
             if (sceneEl) sceneEl.enterVR({ mode: 'immersive-ar' });
         });
         
-        // --- 1. AR УПРАВЛЕНИЕ ---
+        // --- 1. ЖЕЛЕЗОБЕТОННОЕ AR УПРАВЛЕНИЕ ---
         AFRAME.registerComponent('ar-placement', {
             init: function () {
                 this.reticle = document.getElementById('reticle');
@@ -158,24 +157,16 @@
                 
                 const sceneEl = this.el;
 
+                // Функция сброса: просто гасим флаг, НЕ ЗАПРАШИВАЕМ новый HitTestSource!
                 this.resetPlacement = () => {
                     this.placed = false;
-                    if (this.arModel) {
-                        this.arModel.setAttribute('visible', 'false');
-                        this.arModel.setAttribute('position', {x:0, y:0, z:0});
-                        this.arModel.setAttribute('rotation', {x:0, y:0, z:0});
-                        this.arModel.object3D.scale.set(1,1,1);
-                    }
-                    const session = sceneEl.renderer.xr.getSession();
-                    if (session && this.viewerSpace) {
-                        session.requestHitTestSource({ space: this.viewerSpace }).then((s) => { this.hitTestSource = s; });
-                    }
+                    if (this.arModel) this.arModel.setAttribute('visible', false);
                 };
 
                 sceneEl.addEventListener('ar-request-reset', this.resetPlacement);
                 sceneEl.addEventListener('figure-changed', () => {
                     if (this.arMode) this.resetPlacement();
-                    else this.placed = false; // сброс флага для следующего входа
+                    else this.placed = false; 
                 });
 
                 sceneEl.addEventListener('enter-vr', () => {
@@ -183,7 +174,6 @@
                         this.arMode = true; this.placed = false;
                         document.body.classList.add('ar-mode');
                         
-                        // Показ инструкции только один раз
                         if (!sessionStorage.getItem('ar_hint_shown')) {
                             instrWindow.style.display = 'block';
                         }
@@ -191,8 +181,9 @@
                         const session = sceneEl.renderer.xr.getSession();
                         if (session) {
                             session.addEventListener('select', () => this.onSelect());
+                            
+                            // ЗАПРАШИВАЕМ СКАНЕР ТОЛЬКО 1 РАЗ!
                             session.requestReferenceSpace('viewer').then((vs) => { 
-                                this.viewerSpace = vs; 
                                 session.requestHitTestSource({ space: vs }).then((s) => { this.hitTestSource = s; });
                             });
                             session.requestReferenceSpace('local').then((s) => { this.localSpace = s; });
@@ -203,8 +194,17 @@
                 sceneEl.addEventListener('exit-vr', () => {
                     this.arMode = false; this.placed = false;
                     document.body.classList.remove('ar-mode');
-                    if (this.arModel) this.arModel.setAttribute('visible', 'false');
+                    
+                    // Жесткая очистка AR модели
+                    if (this.arModel) this.arModel.setAttribute('visible', false);
+                    if (this.reticle) this.reticle.setAttribute('visible', false);
                     instrWindow.style.display = 'none';
+
+                    // Очистка сканера, чтобы при новом входе AR запустился чисто
+                    if (this.hitTestSource) {
+                        try { this.hitTestSource.cancel(); } catch (e) {}
+                        this.hitTestSource = null;
+                    }
                 });
 
                 this.onPointerDown = this.onPointerDown.bind(this);
@@ -222,19 +222,24 @@
                 const results = frame.getHitTestResults(this.hitTestSource);
                 if (results.length > 0) {
                     const pose = results[0].getPose(this.localSpace);
-                    this.reticle.setAttribute('visible', 'true');
+                    this.reticle.setAttribute('visible', true);
                     this.reticle.setAttribute('position', pose.transform.position);
                     this.reticle.object3D.quaternion.copy(pose.transform.orientation);
-                } else { this.reticle.setAttribute('visible', 'false'); }
+                } else { this.reticle.setAttribute('visible', false); }
             },
 
             onSelect: function () {
-                if (!this.arMode || !this.placed || !this.reticle.getAttribute('visible')) return;
+                // Если инструкция открыта - игнорируем тап по полу
+                if (instrWindow.style.display === 'block') return;
+                
+                if (!this.arMode || this.placed || !this.reticle.getAttribute('visible')) return;
                 this.arModel.setAttribute('position', this.reticle.getAttribute('position'));
                 this.arModel.object3D.quaternion.copy(this.reticle.object3D.quaternion);
-                this.arModel.setAttribute('visible', 'true');
-                this.placed = true;
-                this.reticle.setAttribute('visible', 'false');
+                this.arModel.setAttribute('visible', true);
+                
+                this.placed = true; 
+                this.reticle.setAttribute('visible', false);
+                
                 if (window.navigator.vibrate) window.navigator.vibrate(50);
             },
 
@@ -258,8 +263,9 @@
                     const dist = Math.hypot(evt.touches[0].clientX - evt.touches[1].clientX, evt.touches[0].clientY - evt.touches[1].clientY);
                     const angle = Math.atan2(evt.touches[0].clientY - evt.touches[1].clientY, evt.touches[0].clientX - evt.touches[1].clientX);
                     this.arModel.object3D.scale.setScalar(Math.max(0.1, Math.min(5.0, this.initialScale * (dist / this.initialDistance))));
+                    
+                    // Поворот в AR (Корректный)
                     let deltaAngle = angle - this.initialAngle;
-                    // Исправлено: вращение в AR теперь следует за пальцами
                     this.arModel.setAttribute('rotation', { x: 0, y: this.initialRotationY - deltaAngle * (180 / Math.PI), z: 0 });
                 } else if (this.isDragging && evt.touches.length === 1) {
                     evt.preventDefault();
@@ -293,7 +299,7 @@
                 document.addEventListener('wheel', this.onWheel, { passive: false });
             },
             onPointerDown: function (evt) {
-                if (document.body.classList.contains('ar-mode') || evt.target.closest('button')) return;
+                if (document.body.classList.contains('ar-mode') || evt.target.closest('button') || evt.target.closest('#ar-instructions')) return;
                 this.isDragging = true;
                 if (evt.touches && evt.touches.length === 2) {
                     this.initDist = Math.hypot(evt.touches[0].clientX - evt.touches[1].clientX, evt.touches[0].clientY - evt.touches[1].clientY);
@@ -307,12 +313,14 @@
                 if (evt.touches && evt.touches.length === 2) {
                     evt.preventDefault();
                     let d = Math.hypot(evt.touches[0].clientX - evt.touches[1].clientX, evt.touches[0].clientY - evt.touches[1].clientY);
-                    this.zoom = Math.max(0.1, Math.min(0.175, this.initZoom * (this.initDist / d)));
+                    this.zoom = Math.max(0.1, Math.min(0.25, this.initZoom * (this.initDist / d)));
                 } else {
                     evt.preventDefault();
                     let cx = evt.touches ? evt.touches[0].clientX : evt.clientX;
                     let cy = evt.touches ? evt.touches[0].clientY : evt.clientY;
                     let rot = this.wrapper.getAttribute('rotation');
+                    
+                    // Поворот в галерее: ОРИГИНАЛЬНЫЙ НАДЕЖНЫЙ ПУТЬ
                     let nx = Math.max(-70, Math.min(70, rot.x + (cy - this.prevPos.y) * Math.cos(rot.y * Math.PI / 180) * 0.22));
                     this.wrapper.setAttribute('rotation', { x: nx, y: rot.y + (cx - this.prevPos.x) * 0.22, z: 0 });
                     this.prevPos = { x: cx, y: cy };
@@ -322,11 +330,12 @@
             onPointerUp: function () { this.isDragging = false; },
             onWheel: function (evt) {
                 if (document.body.classList.contains('ar-mode')) return;
-                this.zoom = Math.max(0.1, Math.min(0.175, this.zoom + evt.deltaY * 0.001));
+                this.zoom = Math.max(0.1, Math.min(0.25, this.zoom + evt.deltaY * 0.001));
                 this.camera.setAttribute('position', `0 0 ${this.zoom}`);
             }
         });
 
+        // --- 3. СИНХРОНИЗАЦИЯ МОДЕЛЕЙ ---
         AFRAME.registerComponent('ar-model-sync', {
             init: function () {
                 this.inner = document.getElementById('ar-model-inner');
@@ -343,11 +352,10 @@
             },
             scale: function () {
                 const obj = this.inner.object3D;
-                if (!obj) return;
                 obj.rotation.set(0,0,0); obj.scale.setScalar(1); obj.position.set(0,0,0); obj.updateMatrixWorld(true);
                 const box = new THREE.Box3().setFromObject(obj);
                 const size = new THREE.Vector3(); box.getSize(size);
-                if (size.y === 0) return;
+                if (Math.max(size.x, size.y, size.z) === 0) return;
                 obj.scale.setScalar(0.20 / Math.max(size.x, size.y, size.z));
                 obj.updateMatrixWorld(true);
                 const b2 = new THREE.Box3().setFromObject(obj);
@@ -394,7 +402,9 @@
         document.getElementById('next-btn').onclick = () => { currentFigure = (currentFigure < 18) ? currentFigure + 1 : 1; load(currentFigure); };
         load(1);
 
-        overlay.addEventListener('beforexrselect', (e) => { if (e.target.closest('button')) e.preventDefault(); });
+        document.getElementById('overlay').addEventListener('beforexrselect', (e) => { 
+            if (e.target.closest('button') || e.target.closest('#ar-instructions')) e.preventDefault(); 
+        });
     </script>
 </body>
 </html>
