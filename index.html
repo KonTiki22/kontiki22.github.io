@@ -314,8 +314,8 @@
             init: function () {
                 this.wrapper = document.getElementById('model-wrapper');
                 this.camera = document.getElementById('main-camera');
-                this.isDragging = false;
-                this.zoom = 0.25;
+                this.isDragging = false; 
+                this.zoom = 0.25; // Начальная позиция камеры (совпадает с position="0 0 0.25")
                 this.onPointerDown = this.onPointerDown.bind(this);
                 this.onPointerUp = this.onPointerUp.bind(this);
                 this.onPointerMove = this.onPointerMove.bind(this);
@@ -343,14 +343,17 @@
                 if (evt.touches && evt.touches.length === 2) {
                     evt.preventDefault();
                     let d = Math.hypot(evt.touches[0].clientX - evt.touches[1].clientX, evt.touches[0].clientY - evt.touches[1].clientY);
-                    this.zoom = Math.max(0.175, Math.min(0.35, this.initZoom * (this.initDist / d)));
+                    // 🔧 minZoom снижен до 0.05 для сильного приближения
+                    this.zoom = Math.max(0.1, Math.min(0.35, this.initZoom * (this.initDist / d)));
                 } else {
                     evt.preventDefault();
                     let cx = evt.touches ? evt.touches[0].clientX : evt.clientX;
                     let cy = evt.touches ? evt.touches[0].clientY : evt.clientY;
                     let rot = this.wrapper.getAttribute('rotation');
+                    
                     let normY = ((rot.y % 360) + 360) % 360;
                     let verticalFactor = (normY > 90 && normY < 270) ? -1 : 1;
+                    
                     let nx = Math.max(-70, Math.min(70, rot.x + (cy - this.prevPos.y) * 0.22 * verticalFactor));
                     this.wrapper.setAttribute('rotation', { x: nx, y: rot.y + (cx - this.prevPos.x) * 0.22, z: 0 });
                     this.prevPos = { x: cx, y: cy };
@@ -360,7 +363,8 @@
             onPointerUp: function () { this.isDragging = false; },
             onWheel: function (evt) {
                 if (document.body.classList.contains('ar-mode')) return;
-                this.zoom = Math.max(0.175, Math.min(0.35, this.zoom + evt.deltaY * 0.0001));
+                // 🔧 Чувствительность 0.0001 сохранена, minZoom = 0.05
+                this.zoom = Math.max(0.1, Math.min(0.35, this.zoom + evt.deltaY * 0.0001));
                 this.camera.setAttribute('position', `0 0 ${this.zoom}`);
             }
         });
