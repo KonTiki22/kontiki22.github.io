@@ -314,7 +314,8 @@
             init: function () {
                 this.wrapper = document.getElementById('model-wrapper');
                 this.camera = document.getElementById('main-camera');
-                this.isDragging = false; this.zoom = 0.175;
+                this.isDragging = false;
+                this.zoom = 0.25;
                 this.onPointerDown = this.onPointerDown.bind(this);
                 this.onPointerUp = this.onPointerUp.bind(this);
                 this.onPointerMove = this.onPointerMove.bind(this);
@@ -342,7 +343,7 @@
                 if (evt.touches && evt.touches.length === 2) {
                     evt.preventDefault();
                     let d = Math.hypot(evt.touches[0].clientX - evt.touches[1].clientX, evt.touches[0].clientY - evt.touches[1].clientY);
-                    this.zoom = Math.max(0.1, Math.min(0.25, this.initZoom * (this.initDist / d)));
+                    this.zoom = Math.max(0.175, Math.min(0.35, this.initZoom * (this.initDist / d)));
                 } else {
                     evt.preventDefault();
                     let cx = evt.touches ? evt.touches[0].clientX : evt.clientX;
@@ -359,7 +360,7 @@
             onPointerUp: function () { this.isDragging = false; },
             onWheel: function (evt) {
                 if (document.body.classList.contains('ar-mode')) return;
-                this.zoom = Math.max(0.1, Math.min(0.25, this.zoom + evt.deltaY * 0.001));
+                this.zoom = Math.max(0.175, Math.min(0.35, this.zoom + evt.deltaY * 0.0001));
                 this.camera.setAttribute('position', `0 0 ${this.zoom}`);
             }
         });
